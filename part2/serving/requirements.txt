@@ -1,0 +1,7 @@
+keras>=3.6,<4
+numpy
+pandas
+mlflow>=3.15,<4
+fastapi
+uvicorn[standard]
+psycopg[binary]

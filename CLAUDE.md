@@ -63,6 +63,24 @@ per part holds that part's services.
 | `postgres` | base | `db`, `part2` | Label Studio store, analyst verdicts, app telemetry |
 | `trainer` | part1 | `tools` | one MNIST run per launch, then exits |
 | `api-serve` | part1 | `serve` | FastAPI serving `models:/mnist-keras@champion`, :8000 |
+| `fraud-trainer` | part2 | `part2`, `tools2` | one fraud run per launch, then exits |
+| `fraud-serve` | part2 | `part2`, `serve2` | `models:/fraud-keras@champion` → decisions, :8001 |
+
+Part 2 additions worth knowing before editing it:
+
+- **Both Part 2 images build from context `./part2`**, not their own subdirectory, so each can
+  `COPY common/features.py`. That one file is imported by trainer and server alike — changing
+  it changes both, which is the point (no training/serving skew) and the hazard (a feature
+  edit invalidates every registered model).
+- **The operating threshold belongs to the model, not the server.** `train.py` picks it on the
+  validation tail and writes it as an `operating_threshold` **run** tag (not a model-version
+  tag — read it via `client.get_run(mv.run_id).data.tags`). `fraud-serve` refuses to start if
+  it is missing and no `DECLINE_THRESHOLD` override is set; do not add a 0.5 fallback, which at
+  a 0.4% base rate would decline a large slice of legitimate traffic.
+- **Postgres schema is applied at service startup** from `part2/pipeline/schema.sql`, all
+  `CREATE ... IF NOT EXISTS`. There is no migration tool; keep it idempotent.
+- **`scored_transactions.trans_num` is UNIQUE and scoring upserts on it**, so replaying the
+  same test rows updates in place rather than duplicating.
 
 Part 1's three containers **share nothing but the MLflow registry**.
 The decoupling is the pedagogical point: `api-serve/app.py` has never seen `trainer/train.py`.

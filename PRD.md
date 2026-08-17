@@ -31,10 +31,10 @@ application consumes and a human reviewer disputes.
 | # | container | status | role |
 |---|---|---|---|
 | 1 | **mlflow-server** | ✅ built (Part 1) | experiment tracking + model registry |
-| 2 | **postgres** | ✅ defined | Label Studio store, analyst verdicts, app telemetry |
+| 2 | **postgres** | ✅ built | Label Studio store, analyst verdicts, app telemetry |
 | 3 | **fraud-trainer** | ✅ built | ephemeral, trains and registers, config via env vars |
-| 4 | **fraud-serve** | ⬜ next | serves champion from MLflow; `/score` → approve/review/decline |
-| 5 | **label-studio** | ⬜ | ~~labelbox~~ self-hosted review queue for sampled inferences |
+| 4 | **fraud-serve** | ✅ built | serves champion from MLflow; `/score` → approve/review/decline, :8001 |
+| 5 | **label-studio** | ⬜ next | ~~labelbox~~ self-hosted review queue for sampled inferences |
 | 6 | **txn-app** | ⬜ | replays transactions against the endpoint; dashboard on :5500 |
 | 7 | **airflow** | ⬜ last | orchestrates train → detect champion → redeploy |
 
@@ -86,7 +86,7 @@ A separate SQLite would need joining across two stores on the first interesting 
 
 ## Decisions made while building
 
-**Feature engineering is shared code, not duplicated code.** `part2/trainer/features.py` is
+**Feature engineering is shared code, not duplicated code.** `part2/common/features.py` is
 imported by both trainer and server. This breaks Part 1's "the server has never seen the
 trainer" property deliberately: date parsing and haversine distance can't be expressed as Keras
 layers, and reimplementing them server-side is the classic training/serving skew bug. Learned

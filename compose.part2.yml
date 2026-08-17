@@ -6,7 +6,11 @@ services:
   # ----------------------------------------------------------- fraud trainer
   # Same contract as Part 1's trainer: one run, config entirely from env, then exits.
   fraud-trainer:
-    build: ./part2/trainer
+    build:
+      # Context is part2/ so the image can copy common/features.py, which the serving
+      # image also copies. One definition, no training/serving skew.
+      context: ./part2
+      dockerfile: trainer/Dockerfile
     container_name: fraud-trainer
     profiles: ["part2", "tools2"]
     user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
@@ -38,3 +42,45 @@ services:
     volumes:
       - ./mlruns:/mlruns
       - ./data:/data
+
+  # --------------------------------------------------------------- inference
+  # Serves models:/fraud-keras@champion and turns probabilities into decisions.
+  # Port 8001, because Part 1's api-serve owns 8000 and both can run at once.
+  fraud-serve:
+    build:
+      context: ./part2
+      dockerfile: serving/Dockerfile
+    container_name: fraud-serve
+    profiles: ["part2", "serve2"]
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    ports:
+      - "8001:8001"
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      KERAS_BACKEND: torch
+      KERAS_HOME: /tmp/.keras
+      HOME: /tmp
+      USER: mlflow
+      GIT_PYTHON_REFRESH: quiet
+      MODEL_URI: models:/fraud-keras@champion
+      POSTGRES_DSN: "postgresql://${POSTGRES_USER:-mlops}:${POSTGRES_PASSWORD:-mlops}@postgres:5432/${POSTGRES_DB:-mlops}"
+      # Both empty = inherit the operating point the trainer chose and tagged on the run.
+      # Set either to a number to override and watch the app's decision mix shift.
+      DECLINE_THRESHOLD: ""
+      REVIEW_THRESHOLD: ""
+      REVIEW_SPAN: "0.5"       # review band starts at decline * this, when not set explicitly
+    volumes:
+      - ./mlruns:/mlruns
+      - ./data:/data
+      - ./inference:/inference
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s

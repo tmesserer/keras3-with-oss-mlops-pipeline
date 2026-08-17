@@ -6,7 +6,8 @@ Two parts, sharing one MLflow registry and one Postgres.
   loop. Done, and deliberately frozen.
 - **Part 2** (`part2/`) — credit-card fraud. Adds the things Part 1 can't teach: a real
   application depending on the endpoint, a human review queue feeding labels back, and a
-  versioned derived dataset. In progress — the trainer is built, serving is next.
+  versioned derived dataset. In progress — trainer and serving are built, the review
+  queue is next.
 
 ## Setup (WSL or Linux)
 
@@ -31,9 +32,9 @@ exclusively inside the containers.
 ```
 docker-compose.yml     shared: mlflow-server, postgres
 compose.part1.yml      trainer, api-serve
-compose.part2.yml      fraud-trainer
+compose.part2.yml      fraud-trainer, fraud-serve
 part1/                 trainer/, api-serve/, notebooks/hub.ipynb      [frozen]
-part2/                 trainer/, pipeline/
+part2/                 trainer/, serving/, common/, pipeline/
 mlruns/                MLflow backend store + artifacts  -> /mlruns in every container
 data/                  mnist.npz, fraud/*.csv            -> /data
 inference/             predictions.jsonl, per request    -> /inference
@@ -138,8 +139,8 @@ retraining loop exists.
 
 ### Feature design
 
-`part2/trainer/features.py` turns raw transaction rows into model inputs, and is shared
-verbatim by the trainer and (soon) the serving image. It parses dates and does arithmetic; it
+`part2/common/features.py` turns raw transaction rows into model inputs, and is shared
+verbatim by the trainer and the serving image. It parses dates and does arithmetic; it
 learns nothing. Normalisation constants and embeddings live inside the Keras model, so the
 registry artifact stays self-contained.
 
@@ -158,9 +159,44 @@ Sharing `features.py` between trainer and server is a deliberate break from Part
 server has never seen the trainer" property. The alternative — reimplementing date parsing and
 haversine distance in the server — is the classic training/serving skew bug.
 
+### Serving
+
+```bash
+docker compose --profile part2 up -d fraud-serve     # :8001, brings postgres up with it
+curl localhost:8001/health
+curl localhost:8001/score/sample/1767                # a known fraud from fraudTest.csv
+curl localhost:8001/stats
+```
+
+`/score` takes a raw transaction — the CSV columns, unprocessed — and returns a **decision**,
+not just a probability:
+
+| endpoint | does |
+|---|---|
+| `POST /score` | raw transaction → `{probability, decision, thresholds, latency_ms, id}` |
+| `GET /score/sample/{i}` | same, pulling row `i` out of `fraudTest.csv` |
+| `GET /health` | model version, both thresholds, and where they came from |
+| `POST /reload` | re-resolve `@champion` live, picking up a new threshold with it |
+| `GET /stats` | decision mix, mean latency and caught-fraud counts, from Postgres |
+
+Decisions are three-way. Above `threshold_decline` (the model's own operating point) it
+declines; above `threshold_review` (half of it by default, via `REVIEW_SPAN`) it asks a human;
+otherwise it approves. That middle band is the queue Phase 4 hands to Label Studio — sampling
+the *uncertain* transactions rather than a random 1%, since random sampling of a 0.4%-positive
+stream is nearly all obvious legitimate traffic.
+
+`fraud-serve` refuses to start against a model with no `operating_threshold` tag rather than
+falling back to 0.5 — at this base rate a wrong default silently declines a large fraction of
+legitimate traffic. Set `DECLINE_THRESHOLD` / `REVIEW_THRESHOLD` in `compose.part2.yml` to
+override the model's choice and watch the decision mix move.
+
+Every score is written to `scored_transactions` in Postgres (schema in
+`part2/pipeline/schema.sql`, applied idempotently at startup) and appended to
+`inference/fraud_scores.jsonl`. Postgres is the spine: the review queue selects from it, and
+the retraining snapshot joins it to the `verdicts` table.
+
 ### Still to build
 
-Serving (`/score` returning approve / review / decline) → a transaction-replay application that
-must cope with timeouts and a model changing underneath it → a Label Studio review queue whose
-verdicts land in Postgres → a DVC-versioned derived dataset → Airflow wrapping the steps once
-they're proven by hand.
+A transaction-replay application that must cope with timeouts and a model changing underneath
+it → a Label Studio review queue whose verdicts land in Postgres → a DVC-versioned derived
+dataset → Airflow wrapping the steps once they're proven by hand.
