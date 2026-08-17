@@ -1,0 +1,6 @@
+# Host venv = the notebook hub only. No keras/torch here; training happens in containers.
+mlflow>=3.15,<4
+pandas
+numpy
+requests
+jupyterlab

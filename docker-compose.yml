@@ -1,0 +1,91 @@
+name: keras-mlflow-mnist
+
+services:
+
+  # ---------------------------------------------------------------- tracking
+  # Standalone, reusable MLflow: sqlite backend (needed for the Model Registry)
+  # + plain-file artifacts. ./mlruns is mounted at the SAME path (/mlruns) in
+  # every container, so artifact URIs resolve identically everywhere.
+  mlflow-server:
+    build: ./mlflow-server
+    container_name: mlflow-server
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlruns/mlflow.db
+      --default-artifact-root file:///mlruns/artifacts
+      --no-serve-artifacts
+      --allowed-hosts mlflow-server:5000,localhost:5000,127.0.0.1:5000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ----------------------------------------------------------------- trainer
+  # Trains ONE model and exits. Every hyperparameter below is a default that
+  # the notebook overrides with -e when it launches the container.
+  trainer:
+    build: ./trainer
+    container_name: trainer
+    profiles: ["tools"]
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    restart: "no"
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      KERAS_BACKEND: torch
+      KERAS_HOME: /tmp/.keras
+      HOME: /tmp
+      # The container runs as uid 1000 with no /etc/passwd entry, so MLflow's
+      # getpass.getuser() would fail; USER short-circuits that lookup. And the
+      # image has no git, so stop GitPython printing a page about it.
+      USER: mlflow
+      GIT_PYTHON_REFRESH: quiet
+      EXPERIMENT: mnist-keras
+      REGISTERED_MODEL: mnist-keras
+      RUN_NAME: "run"            # MLflow run name
+      KIND: "mlp"                # mlp | cnn
+      SIZE: "128"                # mlp hidden units / cnn conv filters
+      DROPOUT: "0.2"
+      OPT: "adam"                # adam | sgd
+      LR: "1e-3"
+      EPOCHS: "3"
+      BATCH_SIZE: "128"
+      TRAIN_SUBSET: "20000"      # 0 = full 60k
+    volumes:
+      - ./mlruns:/mlruns
+      - ./data:/data
+
+  # --------------------------------------------------------------- inference
+  # You trigger this: docker compose --profile serve up -d api-serve
+  api-serve:
+    build: ./api-serve
+    container_name: api-serve
+    profiles: ["serve"]
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    ports:
+      - "8000:8000"
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      KERAS_BACKEND: torch
+      KERAS_HOME: /tmp/.keras
+      HOME: /tmp
+      USER: mlflow
+      GIT_PYTHON_REFRESH: quiet
+      MODEL_URI: models:/mnist-keras@champion
+    volumes:
+      - ./mlruns:/mlruns
+      - ./inference:/inference
+      - ./data:/data
+    command: uvicorn app:app --host 0.0.0.0 --port 8000
