@@ -1,0 +1,40 @@
+# Part 2 — fraud detection, a consuming application, and humans in the loop.
+# Merged on top of docker-compose.yml via COMPOSE_FILE in .env.
+
+services:
+
+  # ----------------------------------------------------------- fraud trainer
+  # Same contract as Part 1's trainer: one run, config entirely from env, then exits.
+  fraud-trainer:
+    build: ./part2/trainer
+    container_name: fraud-trainer
+    profiles: ["part2", "tools2"]
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    restart: "no"
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      KERAS_BACKEND: torch
+      KERAS_HOME: /tmp/.keras
+      HOME: /tmp
+      # Same uid-without-passwd-entry workarounds as Part 1; see compose.part1.yml.
+      USER: mlflow
+      GIT_PYTHON_REFRESH: quiet
+      EXPERIMENT: fraud-keras
+      REGISTERED_MODEL: fraud-keras
+      DATA_DIR: /data/fraud
+      RUN_NAME: "run"
+      HIDDEN: "128,64"           # comma-separated dense widths
+      DROPOUT: "0.3"
+      LR: "1e-3"
+      CLASS_WEIGHT: "balanced"   # balanced | none
+      EPOCHS: "5"
+      BATCH_SIZE: "2048"
+      TRAIN_SUBSET: "0"          # 0 = all 1.3M rows; set e.g. 200000 for a quick pass
+      VAL_FRACTION: "0.1"        # tail of train, by time
+      TARGET_PRECISION: "0.90"   # the operating point the threshold is chosen for
+    volumes:
+      - ./mlruns:/mlruns
+      - ./data:/data
