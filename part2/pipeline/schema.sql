@@ -28,6 +28,22 @@ CREATE TABLE IF NOT EXISTS scored_transactions (
 CREATE INDEX IF NOT EXISTS scored_decision_idx ON scored_transactions (decision, scored_at DESC);
 CREATE INDEX IF NOT EXISTS scored_at_idx       ON scored_transactions (scored_at DESC);
 
+-- Which scored transactions have been handed to Label Studio, and as which task. Exists so
+-- pushing is idempotent (the pusher runs on a loop and must not re-import what it already
+-- sent) and so a webhook carrying only a task id can be mapped back to the score.
+CREATE TABLE IF NOT EXISTS review_tasks (
+    scored_id       BIGINT      PRIMARY KEY REFERENCES scored_transactions (id) ON DELETE CASCADE,
+    ls_task_id      BIGINT      NOT NULL,
+    ls_project_id   BIGINT      NOT NULL,
+    pushed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- The probability and version at push time. The model may be reloaded before the analyst
+    -- gets to the task, and the verdict belongs to the score that was actually shown.
+    probability     REAL,
+    model_version   TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS review_tasks_ls_idx ON review_tasks (ls_task_id);
+
 -- Analyst verdicts coming back out of Label Studio. One row per completed annotation.
 CREATE TABLE IF NOT EXISTS verdicts (
     id              BIGSERIAL PRIMARY KEY,

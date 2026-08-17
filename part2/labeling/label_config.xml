@@ -1,0 +1,28 @@
+<!--
+  The analyst's screen. Every $name is a key in the task's `data` object, filled by sync.py
+  from the scored_transactions row.
+
+  Deliberately NOT shown: the model's probability or its decision. An analyst who sees
+  "0.93 fraud" agrees with the model, and a review queue that only confirms the model
+  produces labels with no information in them. The score decides what gets reviewed; it
+  must not decide the answer.
+-->
+<View>
+  <Header value="Is this transaction fraudulent?"/>
+
+  <View style="display:grid; grid-template-columns:1fr 1fr; column-gap:2em; row-gap:.2em">
+    <Text name="amount"   value="Amount:   $amt"/>
+    <Text name="category" value="Category: $category"/>
+    <Text name="merchant" value="Merchant: $merchant"/>
+    <Text name="when"     value="When:     $when"/>
+    <Text name="where"    value="Card home: $home"/>
+    <Text name="merch_at" value="Merchant at: $merch_at"/>
+    <Text name="distance" value="Distance: $distance_km km"/>
+    <Text name="holder"   value="Cardholder: $gender, born $dob"/>
+  </View>
+
+  <Choices name="verdict" toName="amount" choice="single" showInLine="true" required="true">
+    <Choice value="fraud"      hotkey="f" html="&lt;b&gt;Confirmed fraud&lt;/b&gt;"/>
+    <Choice value="legitimate" hotkey="l" html="&lt;b&gt;Legitimate&lt;/b&gt;"/>
+  </Choices>
+</View>

@@ -32,9 +32,9 @@ exclusively inside the containers.
 ```
 docker-compose.yml     shared: mlflow-server, postgres
 compose.part1.yml      trainer, api-serve
-compose.part2.yml      fraud-trainer, fraud-serve, txn-app
+compose.part2.yml      fraud-trainer, fraud-serve, txn-app, label-studio, label-sync
 part1/                 trainer/, api-serve/, notebooks/hub.ipynb      [frozen]
-part2/                 trainer/, serving/, app/, common/, pipeline/
+part2/                 trainer/, serving/, app/, labeling/, common/, pipeline/
 mlruns/                MLflow backend store + artifacts  -> /mlruns in every container
 data/                  mnist.npz, fraud/*.csv            -> /data
 inference/             predictions.jsonl, per request    -> /inference
@@ -238,8 +238,46 @@ breaker, and it's visible in your own telemetry rather than asserted in a blog p
 `outcome != 'scored'` have no server-side counterpart at all: those are the transactions the
 app had to decide without a model.
 
+### The human in the loop
+
+```bash
+docker compose --profile label up -d          # label-studio :8080, label-sync :8002
+```
+
+Log into Label Studio with the `LS_USERNAME` / `LS_PASSWORD` from `.env` and open the **Fraud
+review queue** project. It is already full: `label-sync` sweeps the review band every 30
+seconds and pushes anything not yet queued, highest probability first — so a half-finished
+queue is the half worth finishing.
+
+Annotate a task and the verdict is in Postgres before you reach the next one:
+
+```bash
+curl -s localhost:8002/health                 # queue depth, verdict count, last push
+docker compose exec postgres psql -U mlops -d mlops \
+  -c "select v.verdict, s.probability, s.label from verdicts v
+        join scored_transactions s on s.id = v.scored_id"
+```
+
+Three things here are deliberate:
+
+- **The analyst never sees the model's score.** `label_config.xml` renders the amount,
+  merchant, distance and cardholder — not the probability, not the decision. An analyst shown
+  "0.97 fraud" agrees with the model, and a queue that only confirms the model produces labels
+  with no information in them. The score decides *what* gets reviewed; it must not decide the
+  answer.
+- **Two return paths, because webhooks lie.** Label Studio `POST`s each annotation to
+  `label-sync`, which is the fast path. `POST localhost:8002/pull` re-reads every annotation
+  from the API and upserts — that's the correct one, and the only thing that recovers a
+  delivery lost while the container was down. Verdicts key on `scored_id`, so replaying is
+  free and an analyst correcting themselves overwrites.
+- **`review_tasks` sits between the two tables.** It makes pushing idempotent and lets a
+  webhook carrying only a task id find the score behind it.
+
+`label-sync` has no ML dependency either — same rule as `txn-app`. It moves rows and JSON, and
+the only thing it knows about the model is the version string it stamps on each verdict, so a
+later run can ask *what did v2 get wrong?*
+
 ### Still to build
 
-A Label Studio review queue fed from the review band, whose verdicts land in Postgres → a
-DVC-versioned derived dataset joining scores to verdicts → Airflow wrapping the steps once
-they're proven by hand.
+A DVC-versioned derived dataset joining scores to verdicts, with the trainer logging its DVC
+hash → Airflow wrapping the steps once they're proven by hand.

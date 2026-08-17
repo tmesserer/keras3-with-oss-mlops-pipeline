@@ -66,6 +66,8 @@ per part holds that part's services.
 | `fraud-trainer` | part2 | `part2`, `tools2` | one fraud run per launch, then exits |
 | `fraud-serve` | part2 | `part2`, `serve2` | `models:/fraud-keras@champion` → decisions, :8001 |
 | `txn-app` | part2 | `part2`, `app` | replays transactions at the endpoint, dashboard :5500 |
+| `label-studio` | part2 | `part2`, `label` | Label Studio CE review UI, Postgres-backed, :8080 |
+| `label-sync` | part2 | `part2`, `label` | review band → tasks, verdicts → Postgres, :8002 |
 
 Part 2 additions worth knowing before editing it:
 
@@ -88,6 +90,20 @@ Part 2 additions worth knowing before editing it:
 - **Two telemetry tables, on purpose.** `scored_transactions` is what the server did;
   `app_requests` is what the client experienced. Don't merge them — rows where
   `outcome != 'scored'` have no server-side counterpart, and those are the interesting ones.
+- **`label-sync` carries the same no-ML-dependency rule as `txn-app`.** It moves rows between
+  Postgres and Label Studio's REST API. The haversine in `sync.py` is duplicated on purpose —
+  importing `features.py` would give the queue an opinion about the model's inputs, and it
+  only needs a number for a human to read.
+- **The labeling config must not show the model's score.** `part2/labeling/label_config.xml`
+  renders transaction fields only. Adding probability or decision to the task data turns the
+  queue into a confirmation exercise and the labels it produces carry no new information.
+- **Verdicts arrive twice, and that's intended.** The webhook is the fast path; `POST
+  /pull` re-reads annotations from the API and is the one that recovers deliveries lost to
+  downtime. Both upsert on `verdicts.scored_id`, so neither can double-count.
+- **Label Studio rejects bare hostnames in webhook URLs** (Django's `URLValidator`), so
+  `label-sync` carries the network alias `label-sync.local` purely to satisfy it. `postgres`
+  also lists the `label` profile, because compose refuses to start a service whose
+  `depends_on` target is not in an active profile.
 - The dashboard is plain HTML/SVG in `part2/app/index.html`, no build step and no CDN. Its
   palette comes from the `dataviz` skill's reference instance: categorical slots 1–2 for the
   two latency series, reserved status colors for decisions and breaker state (always paired

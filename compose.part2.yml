@@ -115,3 +115,79 @@ services:
       BREAKER_COOLDOWN: "10"     # seconds before a probe is allowed through
     volumes:
       - ./data:/data
+
+  # ------------------------------------------------------------ review queue
+  # Label Studio CE, the open-source review UI (PRD.md named Labelbox, which has no
+  # self-hostable server -- see the corrections there). Shares the one Postgres and keeps
+  # its own Django tables in it, alongside the three in part2/pipeline/schema.sql.
+  #
+  # NOT run as ${DOCKER_UID}: like postgres, the image fixes ownership of its own data dir
+  # on boot and fails when the user is overridden. Hence a named volume, not a bind mount.
+  label-studio:
+    image: heartexlabs/label-studio:1.16.0
+    container_name: label-studio
+    profiles: ["part2", "label"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DJANGO_DB: default
+      POSTGRE_NAME: "${POSTGRES_DB:-mlops}"
+      POSTGRE_USER: "${POSTGRES_USER:-mlops}"
+      POSTGRE_PASSWORD: "${POSTGRES_PASSWORD:-mlops}"
+      POSTGRE_HOST: postgres
+      POSTGRE_PORT: "5432"
+      LABEL_STUDIO_HOST: "http://localhost:8080"
+      # Bootstrapped on first boot only. The token is what label-sync authenticates with,
+      # so it is fixed rather than generated -- a learning box, not a shared deployment.
+      LABEL_STUDIO_USERNAME: "${LS_USERNAME:-analyst@example.com}"
+      LABEL_STUDIO_PASSWORD: "${LS_PASSWORD:-analyst123}"
+      LABEL_STUDIO_USER_TOKEN: "${LS_TOKEN:-fraud-review-local-token-0001}"
+      LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK: "true"
+    volumes:
+      - lsdata:/label-studio/data
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+
+  # --------------------------------------------------------------- label sync
+  # Both directions of the loop: review-band scores out as tasks, verdicts back into
+  # Postgres via Label Studio's webhook. No ML dependency, same as txn-app.
+  label-sync:
+    build:
+      context: ./part2
+      dockerfile: labeling/Dockerfile
+    container_name: label-sync
+    profiles: ["part2", "label"]
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    ports:
+      - "8002:8002"
+    networks:
+      default:
+        # Label Studio validates webhook URLs with Django's URLValidator, which rejects a
+        # bare hostname -- "http://label-sync:8002/..." comes back as "Enter a valid URL."
+        # A dotted alias on the same compose network is the smallest fix.
+        aliases: ["label-sync.local"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      label-studio:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: "postgresql://${POSTGRES_USER:-mlops}:${POSTGRES_PASSWORD:-mlops}@postgres:5432/${POSTGRES_DB:-mlops}"
+      LABEL_STUDIO_URL: http://label-studio:8080
+      LABEL_STUDIO_TOKEN: "${LS_TOKEN:-fraud-review-local-token-0001}"
+      LS_PROJECT_TITLE: "Fraud review queue"
+      # Label Studio calls this back, so it must resolve from inside ITS container -- and
+      # must be dotted, see the network alias above.
+      WEBHOOK_URL: http://label-sync.local:8002/webhook
+      PUSH_INTERVAL: "30"        # seconds between sweeps of the review band
+      PUSH_BATCH: "50"           # tasks per sweep, so a backlog arrives in chunks
+
+volumes:
+  lsdata:

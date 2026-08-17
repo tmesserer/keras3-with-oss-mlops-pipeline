@@ -34,7 +34,8 @@ application consumes and a human reviewer disputes.
 | 2 | **postgres** | ✅ built | Label Studio store, analyst verdicts, app telemetry |
 | 3 | **fraud-trainer** | ✅ built | ephemeral, trains and registers, config via env vars |
 | 4 | **fraud-serve** | ✅ built | serves champion from MLflow; `/score` → approve/review/decline, :8001 |
-| 5 | **label-studio** | ⬜ next | ~~labelbox~~ self-hosted review queue for sampled inferences |
+| 5 | **label-studio** | ✅ built | ~~labelbox~~ self-hosted review queue, fed from the review band, :8080 |
+| 5b | **label-sync** | ✅ built | pushes review-band tasks, receives verdicts by webhook, :8002 |
 | 6 | **txn-app** | ✅ built | replays transactions against the endpoint; dashboard on :5500 |
 | 7 | **airflow** | ⬜ last | orchestrates train → detect champion → redeploy |
 
@@ -105,6 +106,17 @@ no past. The boundary is left visible rather than papered over.
 validation tail and writes it as an `operating_threshold` run tag. The server reads it from the
 model version rather than carrying its own default, so promoting a model promotes its decision
 point with it.
+
+**The review queue hides the model's score from the analyst.** The task shows amount, merchant,
+distance and cardholder — never the probability or the decision. An analyst who sees "0.97
+fraud" agrees with the model, and a label that only confirms what the model already said adds
+nothing to the next training set. The score chooses *what* to review; it must not choose the
+answer.
+
+**Verdicts come back two ways.** Label Studio's webhook is the fast path, and `POST /pull` on
+`label-sync` re-reads annotations from the API. Webhooks are fire-and-forget: a delivery lost
+while the container was down would otherwise be invisible, since the annotation still exists in
+Label Studio and nothing else would ever notice.
 
 ## Known issues
 

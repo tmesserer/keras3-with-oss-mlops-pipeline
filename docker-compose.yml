@@ -40,7 +40,9 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: postgres
-    profiles: ["db", "part2"]
+    # "label" is listed too: compose refuses to start a service whose depends_on target is
+    # not in an active profile, so `--profile label` alone must be able to pull postgres in.
+    profiles: ["db", "part2", "label"]
     environment:
       POSTGRES_USER: "${POSTGRES_USER:-mlops}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-mlops}"
