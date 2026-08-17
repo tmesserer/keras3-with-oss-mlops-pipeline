@@ -4,3 +4,6 @@ pandas
 numpy
 requests
 jupyterlab
+gdown          # part2/pipeline/fetch_data.py: Drive downloads need the confirm token
+pyarrow        # derived fraud dataset is parquet
+psycopg[binary]  # analyst verdicts / app telemetry in Postgres

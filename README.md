@@ -1,5 +1,13 @@
 # Keras 3 + MLflow
 
+A learning project in two parts, sharing one MLflow registry.
+
+- **Part 1** (`part1/`) — the loop below, on MNIST. Complete and frozen.
+- **Part 2** (`part2/`) — fraud detection, a consuming application, a human review queue, and a
+  versioned derived dataset. In progress.
+
+## Part 1
+
 A small MLOps loop — **train → compare → promote → serve → observe** — split across three
 containers that share nothing but the MLflow registry.
 
@@ -24,14 +32,18 @@ inference/   predictions.jsonl, appended per request    -> /inference
 ## Run it (WSL or Linux)
 
 ```bash
-cd keras3-with-mlflow
+cp .env.example .env
 sed -i "s/^DOCKER_UID=.*/DOCKER_UID=$(id -u)/;s/^DOCKER_GID=.*/DOCKER_GID=$(id -g)/" .env
 
 python3.12 -m venv .venv && source .venv/bin/activate   # 3.12, not 3.14: pyarrow has no cp314 wheels
 pip install -r requirements-host.txt
 
-jupyter lab notebooks/hub.ipynb     # or open the folder in VS Code and pick .venv as kernel
+jupyter lab part1/notebooks/hub.ipynb   # or open the folder in VS Code and pick .venv as kernel
 ```
+
+`.env` also sets `COMPOSE_FILE`, which merges `docker-compose.yml` (shared infra) with
+`compose.part1.yml` (this part's services) — that's why a bare `docker compose` below finds
+`trainer` and `api-serve` without any `-f` flags. Without `.env`, it won't.
 
 Then work through the notebook top to bottom. Section 3 trains three models, one cell each;
 change a number in any cell and re-run it — nothing is rebuilt, because the hyperparameters
@@ -58,6 +70,8 @@ docker compose --profile tools --profile serve down
 
 - **Champion selection**: notebook step 5 sets the `champion` alias on the best registered
   version. `api-serve` resolves the alias at startup; `POST /reload` re-resolves it live.
+  Promote only to a version whose artifacts still exist on disk — a dangling alias fails at
+  service startup with `No such artifact: ''`, not at promotion time.
 - **Where models live**: only in the MLflow registry, as the `keras` flavor. There is
   deliberately no second copy on the host — the registry is the source of truth.
 - **Artifacts**: `./mlruns` is mounted at the same absolute path in all containers, so
