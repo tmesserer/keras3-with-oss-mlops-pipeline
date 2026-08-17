@@ -42,3 +42,24 @@ CREATE TABLE IF NOT EXISTS verdicts (
 );
 
 CREATE INDEX IF NOT EXISTS verdicts_decided_idx ON verdicts (decided_at DESC);
+
+-- What the consuming application saw. Deliberately separate from scored_transactions:
+-- that table is what the SERVER did, this is what the CLIENT experienced. The gap between
+-- server_ms and client_ms is the network and queueing the model never sees, and rows where
+-- outcome != 'scored' have no server-side counterpart at all -- those are exactly the
+-- transactions the app had to decide without a model.
+CREATE TABLE IF NOT EXISTS app_requests (
+    id            BIGSERIAL PRIMARY KEY,
+    requested_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    trans_num     TEXT,
+    outcome       TEXT NOT NULL CHECK (outcome IN ('scored','fallback','shed')),
+    decision      TEXT NOT NULL,
+    client_ms     REAL,
+    server_ms     REAL,
+    model_version TEXT,
+    breaker_state TEXT,
+    error         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS app_requests_at_idx      ON app_requests (requested_at DESC);
+CREATE INDEX IF NOT EXISTS app_requests_outcome_idx ON app_requests (outcome, requested_at DESC);

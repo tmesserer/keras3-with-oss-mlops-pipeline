@@ -6,8 +6,8 @@ Two parts, sharing one MLflow registry and one Postgres.
   loop. Done, and deliberately frozen.
 - **Part 2** (`part2/`) — credit-card fraud. Adds the things Part 1 can't teach: a real
   application depending on the endpoint, a human review queue feeding labels back, and a
-  versioned derived dataset. In progress — trainer and serving are built, the review
-  queue is next.
+  versioned derived dataset. In progress — trainer, serving and the consumer app are
+  built; the review queue is next.
 
 ## Setup (WSL or Linux)
 
@@ -32,9 +32,9 @@ exclusively inside the containers.
 ```
 docker-compose.yml     shared: mlflow-server, postgres
 compose.part1.yml      trainer, api-serve
-compose.part2.yml      fraud-trainer, fraud-serve
+compose.part2.yml      fraud-trainer, fraud-serve, txn-app
 part1/                 trainer/, api-serve/, notebooks/hub.ipynb      [frozen]
-part2/                 trainer/, serving/, common/, pipeline/
+part2/                 trainer/, serving/, app/, common/, pipeline/
 mlruns/                MLflow backend store + artifacts  -> /mlruns in every container
 data/                  mnist.npz, fraud/*.csv            -> /data
 inference/             predictions.jsonl, per request    -> /inference
@@ -195,8 +195,51 @@ Every score is written to `scored_transactions` in Postgres (schema in
 `inference/fraud_scores.jsonl`. Postgres is the spine: the review queue selects from it, and
 the retraining snapshot joins it to the `verdicts` table.
 
+### The consuming application
+
+```bash
+docker compose --profile part2 up -d txn-app     # dashboard on http://localhost:5500
+```
+
+`txn-app` replays `fraudTest.csv` as a live stream against `/score`. It is the part of Part 2
+with **no machine learning in it at all** — no keras, no torch, no `features.py`, a ~100MB
+image. It forwards raw rows and consumes decisions. If it ever needs an ML dependency, the
+serving boundary has leaked.
+
+Its job is to answer the questions every real consumer of a model faces:
+
+- **The endpoint is slow.** `REQUEST_TIMEOUT` (2s) bounds the wait, `RETRIES` (2) bounds the
+  attempts.
+- **The endpoint is down.** Every transaction still needs an answer, so an un-scored one gets
+  `FALLBACK_DECISION`. That default is `review` — because `approve` loses money to fraud and
+  `decline` rejects good customers. There is no free option; it's a business decision wearing
+  a config flag.
+- **The endpoint is dead, not just slow.** After `BREAKER_THRESHOLD` consecutive failures the
+  circuit opens and requests are *shed* — answered from the fallback without a call — until a
+  single probe is allowed through every `BREAKER_COOLDOWN` seconds.
+- **The model changed underneath it.** Every decision is stamped with the model version, so a
+  champion swap shows up as a shift in the decision mix mid-stream.
+
+The **Simulate outage** button points the app at a dead address without touching any
+container, so you can watch the breaker trip and recover. Measured during a real outage run:
+
+| outcome | mean client latency |
+|---|---|
+| scored | 20.9 ms |
+| fallback (timeout + retry) | 102.2 ms |
+| shed (circuit open) | 0.0 ms |
+
+**Failing is slower than succeeding** — that asymmetry is the whole argument for a circuit
+breaker, and it's visible in your own telemetry rather than asserted in a blog post.
+
+`app_requests` in Postgres records what the *client* saw, deliberately separate from
+`scored_transactions`, which records what the *server* did. The gap between `client_ms` and
+`server_ms` is network, queueing and retry — time the model never sees. Rows where
+`outcome != 'scored'` have no server-side counterpart at all: those are the transactions the
+app had to decide without a model.
+
 ### Still to build
 
-A transaction-replay application that must cope with timeouts and a model changing underneath
-it → a Label Studio review queue whose verdicts land in Postgres → a DVC-versioned derived
-dataset → Airflow wrapping the steps once they're proven by hand.
+A Label Studio review queue fed from the review band, whose verdicts land in Postgres → a
+DVC-versioned derived dataset joining scores to verdicts → Airflow wrapping the steps once
+they're proven by hand.

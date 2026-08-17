@@ -65,6 +65,7 @@ per part holds that part's services.
 | `api-serve` | part1 | `serve` | FastAPI serving `models:/mnist-keras@champion`, :8000 |
 | `fraud-trainer` | part2 | `part2`, `tools2` | one fraud run per launch, then exits |
 | `fraud-serve` | part2 | `part2`, `serve2` | `models:/fraud-keras@champion` → decisions, :8001 |
+| `txn-app` | part2 | `part2`, `app` | replays transactions at the endpoint, dashboard :5500 |
 
 Part 2 additions worth knowing before editing it:
 
@@ -81,6 +82,17 @@ Part 2 additions worth knowing before editing it:
   `CREATE ... IF NOT EXISTS`. There is no migration tool; keep it idempotent.
 - **`scored_transactions.trans_num` is UNIQUE and scoring upserts on it**, so replaying the
   same test rows updates in place rather than duplicating.
+- **`txn-app` must never gain an ML dependency.** No keras, no torch, no `features.py` — it
+  forwards raw rows over HTTP and consumes decisions. That constraint is the point of the
+  service (and keeps the image ~100MB); needing one means the serving boundary has leaked.
+- **Two telemetry tables, on purpose.** `scored_transactions` is what the server did;
+  `app_requests` is what the client experienced. Don't merge them — rows where
+  `outcome != 'scored'` have no server-side counterpart, and those are the interesting ones.
+- The dashboard is plain HTML/SVG in `part2/app/index.html`, no build step and no CDN. Its
+  palette comes from the `dataviz` skill's reference instance: categorical slots 1–2 for the
+  two latency series, reserved status colors for decisions and breaker state (always paired
+  with a text label, never color alone). Dark values are declared under both
+  `prefers-color-scheme` and `[data-theme]`.
 
 Part 1's three containers **share nothing but the MLflow registry**.
 The decoupling is the pedagogical point: `api-serve/app.py` has never seen `trainer/train.py`.

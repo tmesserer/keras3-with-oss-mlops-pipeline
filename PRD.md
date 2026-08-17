@@ -35,7 +35,7 @@ application consumes and a human reviewer disputes.
 | 3 | **fraud-trainer** | ✅ built | ephemeral, trains and registers, config via env vars |
 | 4 | **fraud-serve** | ✅ built | serves champion from MLflow; `/score` → approve/review/decline, :8001 |
 | 5 | **label-studio** | ⬜ next | ~~labelbox~~ self-hosted review queue for sampled inferences |
-| 6 | **txn-app** | ⬜ | replays transactions against the endpoint; dashboard on :5500 |
+| 6 | **txn-app** | ✅ built | replays transactions against the endpoint; dashboard on :5500 |
 | 7 | **airflow** | ⬜ last | orchestrates train → detect champion → redeploy |
 
 ### Data flow
