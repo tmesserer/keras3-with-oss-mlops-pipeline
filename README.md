@@ -323,7 +323,63 @@ If the snapshot doesn't exist, the trainer falls back to `fraudTrain.csv` and ta
 There is **no DVC remote**: the cache is local, in `.dvc/cache`. Versioning here is about
 identity, not backup.
 
-### Still to build
+### Orchestration
 
-Airflow, wrapping the steps once they're proven by hand: build → train → compare → promote →
-`POST /reload`, plus the label push/pull on a schedule.
+```bash
+docker compose --profile orchestrate up -d airflow    # http://localhost:8090, no login
+```
+
+Airflow arrives last and automates nothing new — every task wraps a command the phases above
+already proved by hand. Two DAGs, in `part2/airflow/dags/`:
+
+| DAG | schedule | tasks |
+|---|---|---|
+| `fraud_retrain` | manual | `check_snapshot` → `train` → `promote` → `reload_serving` |
+| `sync_labels` | `*/15 * * * *` | `push` → `pull` → `report` |
+
+Hyperparameters stay env-var-only, exactly as when you run the trainer by hand — a trigger can
+override them for one run without editing anything:
+
+```bash
+docker exec airflow airflow dags trigger fraud_retrain \
+  --conf '{"epochs": "15", "hidden": "256,128"}'
+```
+
+The retrain DAG does not train. Its `train` task is a `DockerOperator` that starts the same
+`keras-mlops-fraud-trainer` image you would start with `docker compose run`, through the host's
+docker socket, and waits. Airflow carrying keras would be a second place for the training
+environment to live and a second place for it to drift.
+
+Three decisions in it are worth more than the wiring:
+
+- **The snapshot is verified, not built.** `check_snapshot` md5s the parquet and compares it to
+  the committed `.dvc` pointer; a mismatch fails the run with the rebuild command. Building
+  stays a host action, because `dvc add` needs the git repo and a pipeline that rewrites a
+  pointer nobody reviewed versions data by accident.
+- **Promotion is a comparison.** `promote` takes the newest registered version, checks it was
+  trained from *this* snapshot's hash, checks its artifacts actually exist on disk (a dangling
+  `@champion` otherwise fails at serving startup, not here), and moves the alias only if it
+  beats the incumbent's `test_pr_auc`. Otherwise it skips — and `reload_serving` skips with it,
+  because a champion that did not change needs no reload.
+- **`reload_serving` is where the loop closes.** Promotion alone changes nothing: `fraud-serve`
+  resolved `@champion` at startup. The `POST /reload` is the moment the model swaps under a
+  stream the endpoint never stopped serving, and the dashboard on :5500 shows it as a shift in
+  the decision mix and a stamp change on `version`.
+
+What that looks like end to end, from three consecutive triggers against the same snapshot:
+
+```
+[promote] candidate v4 test_pr_auc=0.7383  champion=v2 test_pr_auc=0.7765   -> skipped
+[promote] candidate v5 test_pr_auc=0.7282  champion=v2 test_pr_auc=0.7765   -> skipped
+[promote] candidate v6 test_pr_auc=0.7938  champion=v2 test_pr_auc=0.7765   -> @champion -> v6
+[reload]  serving v6 decline>=0.998541
+```
+
+The third run was triggered with `--conf '{"epochs": "15", "hidden": "256,128"}'`, and the
+dashboard's 60-second window straddled the swap — `{"2": 437, "6": 155}` — with the new
+model's higher operating threshold arriving with it. The app never stopped serving.
+
+`sync_labels` exists mostly for `POST /pull`. label-sync pushes on its own timer, but nothing
+re-reads Label Studio's annotations on a schedule, and a verdict whose webhook delivery was
+lost is a label bought and thrown away. Both endpoints upsert, so a scheduled pull that
+overlaps a live webhook cannot double-count.

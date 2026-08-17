@@ -68,6 +68,7 @@ per part holds that part's services.
 | `txn-app` | part2 | `part2`, `app` | replays transactions at the endpoint, dashboard :5500 |
 | `label-studio` | part2 | `part2`, `label` | Label Studio CE review UI, Postgres-backed, :8080 |
 | `label-sync` | part2 | `part2`, `label` | review band → tasks, verdicts → Postgres, :8002 |
+| `airflow` | part2 | `part2`, `orchestrate` | two DAGs wrapping the hand-run steps, :8090 |
 
 Part 2 additions worth knowing before editing it:
 
@@ -118,6 +119,33 @@ Part 2 additions worth knowing before editing it:
 - **The trainer withholds reviewed transactions from the test set.** Analyst rows come from
   the `fraudTest.csv` period, so training on them and evaluating on the full test file leaks.
   `test_rows_withheld` records how many; don't remove the filter to make numbers look better.
+- **Airflow launches sibling containers, it does not train.** `fraud_retrain`'s `train` task is
+  a `DockerOperator` running `keras-mlops-fraud-trainer:latest` through the host docker socket,
+  so the training environment stays defined in one image. The cost is that the trainer's env
+  block is restated in the DAG (compose cannot export a service's environment to a sibling) —
+  `compose.part2.yml` is the source of truth; a knob added there needs adding in
+  `TRAINER_ENV` too. The socket needs `DOCKER_SOCK_GID` (`stat -c '%g' /var/run/docker.sock`).
+  Hyperparameters in `TRAINER_ENV` are Jinja (`dag_run.conf` over `params`), which is what
+  makes `--conf '{"epochs": "15"}'` work — `environment` is a templated field.
+- **Bind sources in the DAG are HOST paths**, from `HOST_REPO_DIR: "${PWD}"`. The daemon
+  resolves them on the host, so airflow's own `/data` mount is useless to the container it
+  starts. This is also why compose must be run from the repo root.
+- **`build_dataset.py` is not a task, on purpose.** The DAG only *verifies* that the parquet's
+  md5 still equals the committed `.dvc` pointer and fails with the rebuild command otherwise.
+  A pipeline that rewrote the pointer nobody reviewed would version data by accident, and dvc
+  would have to enter an image. That is the third hand-rolled copy of the pointer parser
+  (`build_dataset.py`, `train.py`, `fraud_retrain.py`) — each in an image that must not import
+  the others.
+- **Promotion is a comparison, and it can legitimately skip.** A run that does not beat the
+  incumbent's `test_pr_auc` raises `AirflowSkipException`, which skips `reload_serving` too and
+  leaves `@champion` alone. `promote` also refuses a version whose artifacts are missing from
+  disk — the dangling-alias trap below fails at *serving startup* otherwise.
+- **Airflow 3 manual runs of an unscheduled DAG have no logical date**, so `{{ ds }}` and
+  `{{ ts_nodash }}` render as undefined and the task fails before docker is contacted. Use
+  `{{ dag_run.run_after }}`, which every run has.
+- Airflow's metadata tables live in the shared Postgres alongside Label Studio's Django tables.
+  `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=True` means :8090 has no login — the one
+  setting to revisit if this ever leaves the laptop.
 - The dashboard is plain HTML/SVG in `part2/app/index.html`, no build step and no CDN. Its
   palette comes from the `dataviz` skill's reference instance: categorical slots 1–2 for the
   two latency series, reserved status colors for decisions and breaker state (always paired

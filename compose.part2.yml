@@ -192,5 +192,69 @@ services:
       PUSH_INTERVAL: "30"        # seconds between sweeps of the review band
       PUSH_BATCH: "50"           # tasks per sweep, so a backlog arrives in chunks
 
+  # ------------------------------------------------------------ orchestration
+  # Airflow arrives LAST and automates nothing new: every task in part2/airflow/dags wraps a
+  # command that phases 1-5 already proved by hand. The retrain DAG starts a sibling
+  # fraud-trainer container through the host's docker socket rather than training in-process,
+  # so the training environment stays defined in exactly one image.
+  #
+  # NOT run as ${DOCKER_UID}: like postgres and label-studio, the image owns its own
+  # directories (uid 50000). Socket access comes from the supplementary group instead.
+  airflow:
+    build:
+      context: ./part2
+      dockerfile: airflow/Dockerfile
+    container_name: airflow
+    profiles: ["part2", "orchestrate"]
+    ports:
+      - "8090:8080"          # 8080 belongs to Label Studio; both run at once
+    group_add:
+      # The gid that owns /var/run/docker.sock on the host -- `stat -c %g /var/run/docker.sock`.
+      # Without it DockerOperator gets "permission denied" on the socket.
+      - "${DOCKER_SOCK_GID:-986}"
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      # Airflow's metadata tables share the one Postgres, same as Label Studio's Django
+      # tables. Different table names, no schema juggling, one database to back up.
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://${POSTGRES_USER:-mlops}:${POSTGRES_PASSWORD:-mlops}@postgres:5432/${POSTGRES_DB:-mlops}"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      # No login on a laptop-local orchestrator. Everyone who can reach :8090 is an admin;
+      # this is the one setting to revisit if this ever leaves the machine.
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      SERVE_URL: http://fraud-serve:8001
+      LABEL_SYNC_URL: http://label-sync:8002
+      SNAPSHOT: /data/derived/fraud_training.parquet
+      # What the DAG hands to the trainer it launches. The rest of that container's config
+      # is restated in the DAG itself -- compose cannot export a service's env to a sibling.
+      TRAINER_IMAGE: keras-mlops-fraud-trainer:latest
+      DOCKER_NETWORK: keras-mlops_default
+      DOCKER_UID: "${DOCKER_UID:-1000}"
+      DOCKER_GID: "${DOCKER_GID:-1000}"
+      DAG_EPOCHS: "5"
+      DAG_TRAIN_SUBSET: "0"      # 0 = all rows; set e.g. 200000 for a fast end-to-end demo
+      # Bind sources for the trainer are resolved by the daemon on the HOST, so the DAG needs
+      # the host path. Compose is always run from the repo root (see COMPOSE_FILE in .env).
+      HOST_REPO_DIR: "${PWD}"
+    volumes:
+      - ./part2/airflow/dags:/opt/airflow/dags:ro
+      - ./data:/data:ro          # read-only: this service verifies the snapshot, never writes it
+      - ./mlruns:/mlruns:ro      # only to check a model version's artifacts exist before promoting
+      - /var/run/docker.sock:/var/run/docker.sock
+      - airflow-logs:/opt/airflow/logs
+    command: ["airflow", "standalone"]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 120s
+
 volumes:
   lsdata:
+  airflow-logs:

@@ -37,7 +37,7 @@ application consumes and a human reviewer disputes.
 | 5 | **label-studio** | ✅ built | ~~labelbox~~ self-hosted review queue, fed from the review band, :8080 |
 | 5b | **label-sync** | ✅ built | pushes review-band tasks, receives verdicts by webhook, :8002 |
 | 6 | **txn-app** | ✅ built | replays transactions against the endpoint; dashboard on :5500 |
-| 7 | **airflow** | ⬜ last | orchestrates build → train → detect champion → redeploy |
+| 7 | **airflow** | ✅ built | two DAGs: retrain→compare→promote→reload, and the label push/pull, :8090 |
 
 ### Data flow
 
