@@ -3,3 +3,4 @@ numpy
 pandas
 scikit-learn        # PR curve + average_precision_score; keras AUC is approximate
 mlflow>=3.15,<4
+pyarrow             # reads the DVC-versioned snapshot; dvc itself stays a host tool

@@ -29,6 +29,9 @@ services:
       EXPERIMENT: fraud-keras
       REGISTERED_MODEL: fraud-keras
       DATA_DIR: /data/fraud
+      # The DVC-versioned snapshot from part2/pipeline/build_dataset.py, used when it exists.
+      # Empty string forces the raw fraudTrain.csv path.
+      SNAPSHOT: /data/derived/fraud_training.parquet
       RUN_NAME: "run"
       HIDDEN: "128,64"           # comma-separated dense widths
       DROPOUT: "0.3"

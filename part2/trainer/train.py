@@ -25,6 +25,10 @@ import features
 EXPERIMENT = os.getenv("EXPERIMENT", "fraud-keras")
 REG_NAME = os.getenv("REGISTERED_MODEL", "fraud-keras")
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data/fraud"))
+# The DVC-versioned snapshot built by part2/pipeline/build_dataset.py. Used when present,
+# fraudTrain.csv when not, so this trainer still runs on a clone that has never labelled
+# anything. Set SNAPSHOT to an empty string to force the CSV path.
+SNAPSHOT = Path(s) if (s := os.getenv("SNAPSHOT", "/data/derived/fraud_training.parquet")) else None
 
 CFG = dict(
     name=os.getenv("RUN_NAME", "run"),
@@ -41,21 +45,57 @@ VAL_FRACTION = float(os.getenv("VAL_FRACTION", "0.1"))
 TARGET_PRECISION = float(os.getenv("TARGET_PRECISION", "0.90"))
 
 
+def dvc_md5(pointer: Path) -> str | None:
+    """Content hash out of a .dvc pointer, parsed by hand -- dvc is a host tool and has no
+    business in this image. Mirrors read_md5() in part2/pipeline/build_dataset.py."""
+    if not pointer.exists():
+        return None
+    for line in pointer.read_text().splitlines():
+        key, _, value = line.lstrip("- ").partition(":")
+        if key.strip() == "md5":
+            return value.strip()
+    return None
+
+
 def load_split():
     """fraudTrain/fraudTest are a TIME split -- never shuffle across the boundary.
 
     The validation slice is the tail of train, again by time, so it simulates
     'score the future with a model fit on the past'. A random split here would leak
     and quietly inflate every number below.
+
+    Returns the three frames plus provenance tags: which data this run learned from, by
+    content hash, so a registered model can be traced to exact bytes rather than to a
+    filename that means something different next week.
     """
-    cols = features.RAW + ["is_fraud"]
-    tr = pd.read_csv(DATA_DIR / "fraudTrain.csv", usecols=cols)
+    cols = features.RAW + ["is_fraud", "trans_num"]
     te = pd.read_csv(DATA_DIR / "fraudTest.csv", usecols=cols)
+
+    if SNAPSHOT and SNAPSHOT.exists():
+        tr = pd.read_parquet(SNAPSHOT)
+        tags = {"dataset": "derived-snapshot", "dataset_path": SNAPSHOT.name,
+                "dvc_md5": dvc_md5(SNAPSHOT.with_suffix(SNAPSHOT.suffix + ".dvc")) or "untracked"}
+        n_analyst = int((tr["source"] == "analyst").sum()) if "source" in tr else 0
+
+        # The moment training data comes from production, the original test set stops being
+        # held out: every analyst row IS a fraudTest row that a human relabelled. Dropping
+        # them keeps test/PR-AUC comparable with earlier runs instead of quietly inflating it.
+        if n_analyst:
+            reviewed = set(tr.loc[tr["source"] == "analyst", "trans_num"])
+            before = len(te)
+            te = te[~te["trans_num"].isin(reviewed)]
+            tags["test_rows_withheld"] = str(before - len(te))
+    else:
+        tr = pd.read_csv(DATA_DIR / "fraudTrain.csv", usecols=cols)
+        tags = {"dataset": "raw-csv", "dataset_path": "fraudTrain.csv", "dvc_md5": "none"}
+        n_analyst = 0
+
     tr = tr.sort_values("trans_date_trans_time", kind="stable")
     if SUBSET:
         tr = tr.tail(SUBSET)          # tail, not head: keep the most recent behaviour
     cut = int(len(tr) * (1 - VAL_FRACTION))
-    return tr.iloc[:cut], tr.iloc[cut:], te
+    tags["analyst_rows"] = str(n_analyst)
+    return tr.iloc[:cut], tr.iloc[cut:], te, tags
 
 
 def build_model(train_df):
@@ -144,10 +184,11 @@ def main():
     print(f"[keras] {keras.__version__} backend={keras.backend.backend()}  mlflow={mlflow.__version__}")
     print(f"[config] {CFG} epochs={EPOCHS} batch={BATCH_SIZE} subset={SUBSET or 'all'}", flush=True)
 
-    tr, val, te = load_split()
+    tr, val, te, data_tags = load_split()
     print(f"[data] train={len(tr):,} ({tr.is_fraud.mean()*100:.3f}% fraud)  "
           f"val={len(val):,} ({val.is_fraud.mean()*100:.3f}%)  "
           f"test={len(te):,} ({te.is_fraud.mean()*100:.3f}%)", flush=True)
+    print(f"[data] {data_tags}", flush=True)
 
     mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
     mlflow.set_experiment(EXPERIMENT)
@@ -155,7 +196,7 @@ def main():
     with mlflow.start_run(run_name=CFG["name"]) as run:
         model = build_model(tr)
         mlflow.set_tags({"task": "fraud", "keras_version": keras.__version__,
-                         "backend": keras.backend.backend()})
+                         "backend": keras.backend.backend(), **data_tags})
         mlflow.log_params(CFG | {"epochs": EPOCHS, "batch_size": BATCH_SIZE,
                                  "train_size": len(tr), "target_precision": TARGET_PRECISION})
 

@@ -277,7 +277,53 @@ Three things here are deliberate:
 the only thing it knows about the model is the version string it stamps on each verdict, so a
 later run can ask *what did v2 get wrong?*
 
+### The versioned snapshot
+
+```bash
+python part2/pipeline/build_dataset.py     # host script -- dvc needs the git repo
+```
+
+Joins the 1.3M original rows to whatever the analysts have ruled on and writes one parquet,
+then `dvc add`s it:
+
+```
+[build] 1,296,678 rows  (3 analyst, 1,296,675 original)  fraud=0.579%
+[build] data/derived/fraud_training.parquet  84.1 MB
+[build] dvc md5 f39848930e4bdeacf470d3c05175278b  -> commit ...parquet.dvc
+```
+
+**The pointer is committed; the parquet is not.** `.gitignore` uses `data/*` rather than
+`data/` precisely so `!data/derived/*.dvc` can re-include it — git cannot un-include a file
+whose parent directory is excluded. Git carries an exact identity for an 84MB file it never
+stores, and the trainer stamps that identity on the run:
+
+```
+[data] {'dataset': 'derived-snapshot', 'dvc_md5': 'f398489...', 'analyst_rows': '3',
+        'test_rows_withheld': '3'}
+```
+
+Three properties are worth checking yourself:
+
+- **The hash is content, not time.** Rebuilding unchanged data reproduces it byte for byte;
+  deleting three verdicts and rebuilding returns to the *previous* hash exactly. Rows are
+  sorted stably by time before writing for this reason — a snapshot whose hash churns on
+  rebuild versions nothing.
+- **Analyst rows are a biased sample.** Only the review band is ever queued, so every human
+  label sits near the operating threshold. That's where labels are worth buying, and it means
+  the snapshot's base rate isn't the population's. `analyst_rows` is tagged so the effect stays
+  traceable.
+- **`test_rows_withheld` is the leakage guard.** Every analyst row *is* a `fraudTest.csv` row
+  that a human relabelled, so the moment training data comes from production the original test
+  set stops being held out. The trainer drops reviewed transactions from test — otherwise
+  test PR-AUC quietly inflates and stops being comparable with earlier runs.
+
+If the snapshot doesn't exist, the trainer falls back to `fraudTrain.csv` and tags the run
+`dataset=raw-csv`, so a fresh clone that has never labelled anything still trains.
+
+There is **no DVC remote**: the cache is local, in `.dvc/cache`. Versioning here is about
+identity, not backup.
+
 ### Still to build
 
-A DVC-versioned derived dataset joining scores to verdicts, with the trainer logging its DVC
-hash → Airflow wrapping the steps once they're proven by hand.
+Airflow, wrapping the steps once they're proven by hand: build → train → compare → promote →
+`POST /reload`, plus the label push/pull on a schedule.

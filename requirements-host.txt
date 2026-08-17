@@ -6,4 +6,5 @@ requests
 jupyterlab
 gdown          # part2/pipeline/fetch_data.py: Drive downloads need the confirm token
 pyarrow        # derived fraud dataset is parquet
+dvc            # part2/pipeline/build_dataset.py; a host tool, never in an image
 psycopg[binary]  # analyst verdicts / app telemetry in Postgres

@@ -104,6 +104,20 @@ Part 2 additions worth knowing before editing it:
   `label-sync` carries the network alias `label-sync.local` purely to satisfy it. `postgres`
   also lists the `label` profile, because compose refuses to start a service whose
   `depends_on` target is not in an active profile.
+- **The derived snapshot is built on the host, not in a container.** `dvc` needs the git repo,
+  so `part2/pipeline/build_dataset.py` runs from the host venv like `fetch_data.py`. The
+  trainer only *reads* the parquet and parses the `.dvc` pointer by hand — never add dvc to an
+  image.
+- **`.gitignore` uses `data/*`, not `data/`.** Git cannot re-include a file whose parent
+  directory is excluded, and `!data/derived/*.dvc` has to work. Changing that line back to
+  `data/` silently stops the snapshot pointer from being committable.
+- **Rebuilds must be byte-reproducible** — rows are sorted stably by
+  `(trans_date_trans_time, trans_num)` and written with `index=False` so unchanged data yields
+  the same md5. Anything that makes the parquet churn (an unstable sort, a timestamp column,
+  writing the index) destroys the point of versioning it.
+- **The trainer withholds reviewed transactions from the test set.** Analyst rows come from
+  the `fraudTest.csv` period, so training on them and evaluating on the full test file leaks.
+  `test_rows_withheld` records how many; don't remove the filter to make numbers look better.
 - The dashboard is plain HTML/SVG in `part2/app/index.html`, no build step and no CDN. Its
   palette comes from the `dataviz` skill's reference instance: categorical slots 1–2 for the
   two latency series, reserved status colors for decisions and breaker state (always paired
@@ -139,13 +153,18 @@ Constraints that are load-bearing and easy to break:
 - **Backend is `KERAS_BACKEND=torch` everywhere.** Keras 3 is channels_last on all backends,
   including torch — inputs are `(28, 28, 1)`, not `(1, 28, 28)`.
 
-## Data on disk (all git-ignored)
+## Data on disk (git-ignored, except the one noted)
 
 ```
-mlruns/       MLflow backend store (mlflow.db) + artifacts   -> /mlruns everywhere
-data/         cached mnist.npz, written by the trainer       -> /data
-inference/    predictions.jsonl, appended per request        -> /inference
+mlruns/           MLflow backend store (mlflow.db) + artifacts   -> /mlruns everywhere
+data/fraud/       Sparkov CSVs, cached mnist.npz                 -> /data
+data/derived/     fraud_training.parquet + its .dvc pointer      -> /data
+inference/        predictions.jsonl, appended per request        -> /inference
 ```
+
+`data/derived/*.dvc` is the **only** thing under `data/` that git tracks — 106 bytes naming
+84MB by content hash. Everything else there is regenerable from `fetch_data.py` and
+`build_dataset.py`.
 
 `api-serve` appends one JSON line per inference to `/inference/predictions.jsonl` via
 `_record()`. That file is the observability surface Part 2 is expected to build on (sampling

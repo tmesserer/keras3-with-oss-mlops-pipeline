@@ -37,7 +37,7 @@ application consumes and a human reviewer disputes.
 | 5 | **label-studio** | ✅ built | ~~labelbox~~ self-hosted review queue, fed from the review band, :8080 |
 | 5b | **label-sync** | ✅ built | pushes review-band tasks, receives verdicts by webhook, :8002 |
 | 6 | **txn-app** | ✅ built | replays transactions against the endpoint; dashboard on :5500 |
-| 7 | **airflow** | ⬜ last | orchestrates train → detect champion → redeploy |
+| 7 | **airflow** | ⬜ last | orchestrates build → train → detect champion → redeploy |
 
 ### Data flow
 
@@ -106,6 +106,17 @@ no past. The boundary is left visible rather than papered over.
 validation tail and writes it as an `operating_threshold` run tag. The server reads it from the
 model version rather than carrying its own default, so promoting a model promotes its decision
 point with it.
+
+**The derived snapshot versions identity, not bytes.** `dvc add` on the 84MB parquet produces
+a 106-byte pointer; the pointer is committed and the parquet is not, and there is no DVC remote
+at all. What that buys is the ability to say *this model was trained on exactly these rows* —
+the trainer tags each run with the md5. Backup is a separate concern and is not what this is
+for.
+
+**Learning from production ends the held-out test set.** Every analyst-labelled row is a
+`fraudTest.csv` row a human relabelled, so the trainer withholds reviewed transactions from
+test and tags how many. Skipping that step inflates test PR-AUC and makes runs before and after
+the review queue incomparable — the exact failure the versioned snapshot is supposed to prevent.
 
 **The review queue hides the model's score from the analyst.** The task shows amount, merchant,
 distance and cardholder — never the probability or the decision. An analyst who sees "0.97
