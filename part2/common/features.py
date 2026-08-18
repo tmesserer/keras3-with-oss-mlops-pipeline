@@ -1,4 +1,4 @@
-"""Raw transaction -> model inputs. Shared verbatim by the trainer and the serving image.
+"""A3 · Raw transaction -> model inputs. Shared verbatim by the trainer and the serving image.
 
 This module is deliberately *dumb*: it parses dates and does arithmetic, and it learns
 nothing. Every statistical transform (normalisation constants, category vocabularies) lives

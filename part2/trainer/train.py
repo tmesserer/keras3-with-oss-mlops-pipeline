@@ -1,4 +1,4 @@
-"""One fraud run, one model. Config arrives as env vars, exactly like Part 1's trainer.
+"""B1-B2 · One fraud run, one model. Config from env vars, exactly like Part 1's trainer.
 
 The difference from Part 1 is the metric. At a 0.58% fraud rate, accuracy is a lie: predicting
 "never fraud" scores 99.42%. So accuracy IS logged -- to make that visible -- but the champion

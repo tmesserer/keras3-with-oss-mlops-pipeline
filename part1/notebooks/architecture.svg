@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 640" width="1180" height="640"
+     font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img"
+     aria-label="Part 1 architecture: stages A to E around the MLflow registry, and one manual loop">
+  <style>
+    .surface { fill: #fcfcfb; }
+    .card    { fill: #ffffff; stroke: #d8d7d0; stroke-width: 1.2; }
+    .band    { fill: none; stroke: #c3c2b7; stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .h1      { fill: #0b0b0b; font-size: 17px; font-weight: 650; }
+    .h2      { fill: #52514e; font-size: 12px; }
+    .title   { fill: #0b0b0b; font-size: 12.5px; font-weight: 650; letter-spacing: .04em; }
+    .item    { fill: #52514e; font-size: 11px; }
+    .code    { fill: #0b0b0b; font-size: 11px; font-weight: 650; }
+    .note    { fill: #898781; font-size: 9.5px; }
+    .rule    { stroke: #e1e0d9; stroke-width: 1; }
+    .flow    { stroke: #52514e; stroke-width: 1.6; fill: none; }
+    .mk      { fill: #52514e; }
+    .l1      { stroke: #2a78d6; }  /* categorical slot 1, same as Part 2's loop 1 */
+    .t1      { fill: #2a78d6; font-size: 11.5px; font-weight: 650; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #1a1a19; }
+      .card    { fill: #232322; stroke: #3a3a37; }
+      .band    { stroke: #4a4a46; }
+      .h1, .title, .code { fill: #ffffff; }
+      .h2, .item { fill: #c3c2b7; }
+      .note    { fill: #a3a199; }
+      .rule    { stroke: #33332f; }
+      .flow    { stroke: #c3c2b7; }
+      .mk      { fill: #c3c2b7; }
+      .l1 { stroke: #3987e5; } .t1 { fill: #3987e5; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="mk" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path fill="#2a78d6" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="surface" x="0" y="0" width="1180" height="640"/>
+
+  <text class="h1" x="30" y="36">Part 1 — three containers, one registry, one loop</text>
+  <text class="h2" x="30" y="58">The containers share nothing but the registry. Every section below carries one of these codes, and so does the file it drives.</text>
+
+  <!-- ================= row 1: A B C D ================= -->
+  <g>
+    <rect class="card" x="30" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="46" y="116">A · DATA</text>
+    <line class="rule" x1="46" y1="128" x2="224" y2="128"/>
+    <text class="item" x="46" y="150"><tspan class="code">A1</tspan>  mnist.npz, cached</text>
+    <text class="item" x="46" y="170"><tspan class="code">A2</tspan>  look at the digits</text>
+    <text class="note" x="46" y="190">60k train · 10k test · balanced</text>
+  </g>
+
+  <g>
+    <rect class="card" x="320" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="336" y="116">B · TRAIN</text>
+    <line class="rule" x1="336" y1="128" x2="514" y2="128"/>
+    <text class="item" x="336" y="150"><tspan class="code">B1</tspan>  build the images</text>
+    <text class="item" x="336" y="170"><tspan class="code">B2</tspan>  mlflow-server :5000</text>
+    <text class="item" x="336" y="190"><tspan class="code">B3</tspan>  three runs, one cell each</text>
+  </g>
+
+  <g>
+    <rect class="card" x="610" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="626" y="116">C · SELECT</text>
+    <line class="rule" x1="626" y1="128" x2="804" y2="128"/>
+    <text class="item" x="626" y="150"><tspan class="code">C1</tspan>  compare on accuracy</text>
+    <text class="item" x="626" y="170"><tspan class="code">C2</tspan>  move the @champion</text>
+    <text class="item" x="626" y="190">      alias — by hand</text>
+  </g>
+
+  <g>
+    <rect class="card" x="910" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="926" y="116">D · SERVE</text>
+    <line class="rule" x1="926" y1="128" x2="1104" y2="128"/>
+    <text class="item" x="926" y="150"><tspan class="code">D1</tspan>  api-serve :8000</text>
+    <text class="item" x="926" y="170"><tspan class="code">D2</tspan>  /predict, two ways</text>
+    <text class="note" x="926" y="190">has never seen train.py</text>
+  </g>
+
+  <!-- ================= the registry ================= -->
+  <g>
+    <rect class="card" x="460" y="296" width="400" height="76" rx="10"/>
+    <text class="title" x="476" y="324">MLFLOW — THE SPINE</text>
+    <text class="item" x="476" y="348">runs · metrics · artifacts · versions · @champion</text>
+  </g>
+
+  <!-- ================= E ================= -->
+  <g>
+    <rect class="card" x="910" y="436" width="210" height="100" rx="10"/>
+    <text class="title" x="926" y="464">E · OBSERVE</text>
+    <line class="rule" x1="926" y1="476" x2="1104" y2="476"/>
+    <text class="item" x="926" y="498"><tspan class="code">E1</tspan>  predictions.jsonl</text>
+    <text class="note" x="926" y="518">one JSON line per request</text>
+  </g>
+
+  <!-- ================= flows ================= -->
+  <path class="flow" marker-end="url(#a)" d="M240,147 H314"/>
+  <text class="note" x="277" y="139" text-anchor="middle">60k images</text>
+  <path class="flow" marker-end="url(#a)" d="M530,147 H604"/>
+  <text class="note" x="567" y="139" text-anchor="middle">3 versions</text>
+  <path class="flow" marker-end="url(#a)" d="M820,147 H904"/>
+  <text class="note" x="862" y="139" text-anchor="middle">@champion</text>
+
+  <path class="flow" marker-end="url(#a)" d="M490,206 V290"/>
+  <text class="note" x="500" y="252">every run, logged</text>
+  <path class="flow" marker-end="url(#a)" d="M715,206 V290"/>
+  <text class="note" x="725" y="252">the alias moves</text>
+  <path class="flow" marker-end="url(#a)" d="M860,334 H960 V212"/>
+  <text class="note" x="950" y="250" text-anchor="end">resolved at startup</text>
+
+  <path class="flow" marker-end="url(#a)" d="M1060,206 V430"/>
+  <text class="note" x="1070" y="390">every prediction</text>
+
+  <!-- ================= the loop ================= -->
+  <path class="flow l1" marker-end="url(#a1)" d="M910,486 H370 V212"/>
+  <text class="t1" x="640" y="452" text-anchor="middle">① one loop — and you are the scheduler</text>
+  <text class="note" x="640" y="470" text-anchor="middle">read the log, change a hyperparameter, train again, promote again</text>
+
+  <!-- ================= bridge to Part 2 ================= -->
+  <rect class="band" x="30" y="556" width="1090" height="56" rx="10"/>
+  <text class="title" x="46" y="580">NOT HERE YET</text>
+  <text class="item" x="46" y="600">No application depending on the endpoint · no human labels · no versioned dataset · no scheduler — that is Part 2</text>
+</svg>

@@ -1,6 +1,6 @@
 <!--
-  The analyst's screen. Every $name is a key in the task's `data` object, filled by sync.py
-  from the scored_transactions row.
+  E1 · The analyst's screen. Every $name is a key in the task's `data` object, filled by
+  sync.py from the scored_transactions row.
 
   Deliberately NOT shown: the model's probability or its decision. An analyst who sees
   "0.93 fraud" agrees with the model, and a review queue that only confirms the model

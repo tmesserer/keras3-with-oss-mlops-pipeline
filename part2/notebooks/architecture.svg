@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 660" width="1180" height="660"
+     font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img"
+     aria-label="Part 2 architecture: stages A to G, three nested loops">
+  <style>
+    .surface { fill: #fcfcfb; }
+    .card    { fill: #ffffff; stroke: #d8d7d0; stroke-width: 1.2; }
+    .band    { fill: none; stroke: #c3c2b7; stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .h1      { fill: #0b0b0b; font-size: 17px; font-weight: 650; }
+    .h2      { fill: #52514e; font-size: 12px; }
+    .title   { fill: #0b0b0b; font-size: 12.5px; font-weight: 650; letter-spacing: .04em; }
+    .item    { fill: #52514e; font-size: 11px; }
+    .code    { fill: #0b0b0b; font-size: 11px; font-weight: 650; }
+    .note    { fill: #898781; font-size: 9.5px; }
+    .rule    { stroke: #e1e0d9; stroke-width: 1; }
+    .flow    { stroke: #52514e; stroke-width: 1.6; fill: none; }
+    .mk      { fill: #52514e; }
+    .l1      { stroke: #2a78d6; }  /* categorical slot 1 */
+    .l2      { stroke: #eb6834; }  /* categorical slot 2 */
+    .l3      { stroke: #1baf7a; }  /* categorical slot 3 */
+    .t1      { fill: #2a78d6; font-size: 11.5px; font-weight: 650; }
+    .t2      { fill: #eb6834; font-size: 11.5px; font-weight: 650; }
+    .t3      { fill: #1baf7a; font-size: 11.5px; font-weight: 650; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #1a1a19; }
+      .card    { fill: #232322; stroke: #3a3a37; }
+      .band    { stroke: #4a4a46; }
+      .h1, .title, .code { fill: #ffffff; }
+      .h2, .item { fill: #c3c2b7; }
+      .note    { fill: #a3a199; }
+      .rule    { stroke: #33332f; }
+      .flow    { stroke: #c3c2b7; }
+      .mk      { fill: #c3c2b7; }
+      .l1 { stroke: #3987e5; } .t1 { fill: #3987e5; }
+      .l2 { stroke: #d95926; } .t2 { fill: #d95926; }
+      .l3 { stroke: #199e70; } .t3 { fill: #199e70; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="mk" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path fill="#2a78d6" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path fill="#eb6834" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path fill="#1baf7a" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="surface" x="0" y="0" width="1180" height="660"/>
+
+  <text class="h1" x="30" y="36">Part 2 — one skeleton, seven stages, three loops</text>
+  <text class="h2" x="30" y="58">Every section of the notebook carries one of these codes. The loops are the point: a model is not a delivery, it is a cycle.</text>
+
+  <!-- ================= row 1: A B C D ================= -->
+  <g>
+    <rect class="card" x="30" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="46" y="116">A · DATA</text>
+    <line class="rule" x1="46" y1="128" x2="224" y2="128"/>
+    <text class="item" x="46" y="150"><tspan class="code">A1</tspan>  fetch the Sparkov CSVs</text>
+    <text class="item" x="46" y="170"><tspan class="code">A2</tspan>  look before modelling</text>
+    <text class="item" x="46" y="190"><tspan class="code">A3</tspan>  features.py, shared</text>
+  </g>
+
+  <g>
+    <rect class="card" x="320" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="336" y="116">B · TRAIN</text>
+    <line class="rule" x1="336" y1="128" x2="514" y2="128"/>
+    <text class="item" x="336" y="150"><tspan class="code">B1</tspan>  fraud-trainer, one run</text>
+    <text class="item" x="336" y="170"><tspan class="code">B2</tspan>  threshold from val</text>
+    <text class="item" x="336" y="190"><tspan class="code">B3</tspan>  registry → @champion</text>
+  </g>
+
+  <g>
+    <rect class="card" x="610" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="626" y="116">C · SERVE</text>
+    <line class="rule" x1="626" y1="128" x2="804" y2="128"/>
+    <text class="item" x="626" y="150"><tspan class="code">C1</tspan>  fraud-serve :8001</text>
+    <text class="item" x="626" y="170"><tspan class="code">C2</tspan>  approve · review ·</text>
+    <text class="item" x="626" y="190">      decline</text>
+  </g>
+
+  <g>
+    <rect class="card" x="910" y="88" width="210" height="118" rx="10"/>
+    <text class="title" x="926" y="116">D · CONSUME</text>
+    <line class="rule" x1="926" y1="128" x2="1104" y2="128"/>
+    <text class="item" x="926" y="150"><tspan class="code">D1</tspan>  txn-app :5500</text>
+    <text class="item" x="926" y="170"><tspan class="code">D2</tspan>  timeout · fallback ·</text>
+    <text class="item" x="926" y="190">      circuit breaker</text>
+  </g>
+
+  <!-- ================= the store ================= -->
+  <g>
+    <rect class="card" x="610" y="296" width="510" height="76" rx="10"/>
+    <text class="title" x="626" y="324">POSTGRES — THE SPINE</text>
+    <text class="item" x="626" y="348">scored_transactions · app_requests · review_tasks · verdicts</text>
+  </g>
+
+  <!-- ================= row 3: F and E ================= -->
+  <g>
+    <rect class="card" x="320" y="436" width="210" height="100" rx="10"/>
+    <text class="title" x="336" y="464">F · VERSION</text>
+    <line class="rule" x1="336" y1="476" x2="514" y2="476"/>
+    <text class="item" x="336" y="498"><tspan class="code">F1</tspan>  build the snapshot</text>
+    <text class="item" x="336" y="518"><tspan class="code">F2</tspan>  dvc hash on the run</text>
+  </g>
+
+  <g>
+    <rect class="card" x="910" y="436" width="210" height="100" rx="10"/>
+    <text class="title" x="926" y="464">E · REVIEW</text>
+    <line class="rule" x1="926" y1="476" x2="1104" y2="476"/>
+    <text class="item" x="926" y="498"><tspan class="code">E1</tspan>  Label Studio :8080</text>
+    <text class="item" x="926" y="518"><tspan class="code">E2</tspan>  label-sync, both ways</text>
+  </g>
+
+  <!-- ================= flows ================= -->
+  <!-- A -> B -> C -->
+  <path class="flow" marker-end="url(#a)" d="M240,147 H314"/>
+  <text class="note" x="277" y="139" text-anchor="middle">1.3M rows</text>
+  <path class="flow" marker-end="url(#a)" d="M530,147 H604"/>
+  <text class="note" x="567" y="139" text-anchor="middle">@champion</text>
+
+  <!-- loop 1: C <-> D -->
+  <path class="flow l1" marker-end="url(#a1)" d="M820,130 H904"/>
+  <text class="note" x="862" y="122" text-anchor="middle">decision</text>
+  <path class="flow l1" marker-end="url(#a1)" d="M910,168 H826"/>
+  <text class="note" x="862" y="186" text-anchor="middle">transaction</text>
+  <text class="t1" x="862" y="232" text-anchor="middle">① decision loop</text>
+  <text class="note" x="862" y="248" text-anchor="middle">seconds</text>
+
+  <!-- C, D -> postgres -->
+  <path class="flow" marker-end="url(#a)" d="M715,206 V290"/>
+  <text class="note" x="725" y="252">what the server did</text>
+  <path class="flow" marker-end="url(#a)" d="M1015,206 V290"/>
+  <text class="note" x="1025" y="252">what the client saw</text>
+
+  <!-- loop 2: postgres <-> label studio -->
+  <path class="flow l2" marker-end="url(#a2)" d="M980,372 V430"/>
+  <text class="note" x="972" y="408" text-anchor="end">review band</text>
+  <path class="flow l2" marker-end="url(#a2)" d="M1050,436 V378"/>
+  <text class="note" x="1058" y="408">verdicts</text>
+  <text class="t2" x="890" y="492" text-anchor="end">② label loop</text>
+  <text class="note" x="890" y="508" text-anchor="end">minutes — a human decides</text>
+
+  <!-- loop 3: postgres -> snapshot -> train -->
+  <path class="flow l3" marker-end="url(#a3)" d="M700,372 V486 H536"/>
+  <text class="note" x="598" y="478" text-anchor="middle">verdicts + original rows</text>
+  <path class="flow l3" marker-end="url(#a3)" d="M370,436 V212"/>
+  <text class="note" x="360" y="330" text-anchor="end">new training set</text>
+  <text class="t3" x="40" y="326">③ improvement loop</text>
+  <text class="note" x="40" y="342">days — the model that ships next</text>
+  <text class="note" x="40" y="358">is made of what this one got wrong</text>
+
+  <!-- ================= G band ================= -->
+  <rect class="band" x="30" y="576" width="1090" height="56" rx="10"/>
+  <text class="title" x="46" y="600">G · ORCHESTRATE — Airflow :8090</text>
+  <text class="item" x="46" y="620"><tspan class="code">G1</tspan> fraud_retrain drives ③ on demand   ·   <tspan class="code">G2</tspan> sync_labels drives ② every 15 min   ·   every task wraps a command you already ran by hand</text>
+</svg>

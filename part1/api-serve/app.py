@@ -1,4 +1,4 @@
-"""Serves whichever model version carries the @champion alias in MLflow."""
+"""D1 · Serves whichever model version carries the @champion alias in MLflow."""
 import json, os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone

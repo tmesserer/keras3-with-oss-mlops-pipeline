@@ -4,6 +4,7 @@ pandas
 numpy
 requests
 jupyterlab
+matplotlib     # section A2 of both notebooks: look at the data before modelling it
 gdown          # part2/pipeline/fetch_data.py: Drive downloads need the confirm token
 pyarrow        # derived fraud dataset is parquet
 dvc            # part2/pipeline/build_dataset.py; a host tool, never in an image

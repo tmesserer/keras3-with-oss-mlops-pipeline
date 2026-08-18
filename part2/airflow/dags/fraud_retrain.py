@@ -1,8 +1,9 @@
-"""The whole loop, unattended: verify the snapshot -> train -> compare -> promote -> reload.
+"""G1 · The whole loop, unattended: verify snapshot -> train -> compare -> promote -> reload.
 
-Every task here wraps something that was run by hand in phases 1-5. That is the point of
-doing Airflow last: nothing below is a new capability, it is the same commands with the
-waiting, the ordering and the "is the new one actually better" check made explicit.
+Every task here wraps something run by hand in sections A-F of part2/notebooks/hub.ipynb.
+That is the point of doing Airflow last: nothing below is a new capability, it is the same
+commands with the waiting, the ordering and the "is the new one actually better" check made
+explicit. This DAG is loop ③ in that notebook's diagram.
 
 Two deliberate limits:
 

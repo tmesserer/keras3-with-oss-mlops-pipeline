@@ -1,4 +1,4 @@
-"""One run, one model. Every hyperparameter arrives as an env var from the container launch."""
+"""B3 · One run, one model. Every hyperparameter arrives as an env var from the container launch."""
 import os, time
 from pathlib import Path
 

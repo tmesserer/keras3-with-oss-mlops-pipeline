@@ -1,4 +1,4 @@
-"""Build the derived training snapshot: original history + what the analysts decided.
+"""F1 · Build the derived training snapshot: original history + what the analysts decided.
 
 Runs on the HOST, like fetch_data.py -- it needs `dvc add`, and dvc needs the git repo.
 

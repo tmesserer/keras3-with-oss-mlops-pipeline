@@ -1,4 +1,4 @@
-"""Fetch the Sparkov fraud dataset into ./data/fraud. Idempotent: a no-op if it's there.
+"""A1 · Fetch the Sparkov fraud dataset into ./data/fraud. Idempotent: a no-op if it's there.
 
 Runs on the HOST (in the .venv), not in a container -- the trainer mounts ./data and
 expects the CSVs to already exist, exactly like Part 1's cached mnist.npz.

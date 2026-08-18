@@ -6,18 +6,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A learning project for MLOps, not a production system.
 
-**Part 1** (`part1/`, complete and frozen) is a **train → compare → promote → serve → observe**
+**Part 1** (`part1/`, complete — code frozen, notebook still maintained) is a
+**train → compare → promote → serve → observe**
 loop on MNIST, using Keras 3 on the torch backend with MLflow as tracking server and registry.
 
-**Part 2** (`part2/`, in progress) moves to fraud detection on the Sparkov credit-card dataset
-and adds the things Part 1 can't teach: an application that depends on the inference endpoint,
+**Part 2** (`part2/`, complete through orchestration) moves to fraud detection on the Sparkov
+credit-card dataset and adds what Part 1 can't teach: an application depending on the endpoint,
 a human review queue feeding labels back, and a versioned derived dataset. Both parts share one
 MLflow registry and one Postgres.
 
-`PRD.md` is the original sketch of Part 2 and is **partly wrong** — it names Labelbox as
-"open source, self-hosted", which does not exist (Labelbox is SaaS-only; the project uses Label
-Studio CE instead), and it assumes accuracy-based model selection, which is meaningless at a
-0.5% fraud rate. Where PRD and code disagree, the code is the truth.
+**The two notebooks are the documentation.** `part1/notebooks/hub.ipynb` and
+`part2/notebooks/hub.ipynb` carry every explanation this project has; `README.md` is one
+paragraph on purpose and must stay that way, and there is no PRD (it was folded into the Part 2
+notebook — `git show HEAD:PRD.md` if you want the original sketch, which was wrong about
+Labelbox and about accuracy-based selection). Explanation belongs in a markdown cell, not in a
+new markdown file.
+
+**Each part's notebook is organised as lettered stages, and each part has exactly one diagram**
+— `part1/notebooks/architecture.svg` and `part2/notebooks/architecture.svg`, referenced once at
+the top of their notebook and never duplicated per section. Both are drawn in the same visual
+language and palette, and Part 1's ends with a "NOT HERE YET" band naming what Part 2 adds. The
+stage codes are the shared vocabulary between notebook, diagram and source.
+
+Part 1 — A data · B train · C select · D serve · E observe, around one loop the student closes
+by hand (which is the setup for Part 2's three automated ones):
+
+| code | notebook section | code lives in |
+|---|---|---|
+| A1 / A2 | cached `mnist.npz` · look at the digits | notebook only |
+| B1 / B2 / B3 | build images · mlflow-server · three runs | `part1/trainer/train.py` (B3) |
+| C1 / C2 | compare on accuracy · move `@champion` | notebook only |
+| D1 / D2 | `api-serve` · `/predict` | `part1/api-serve/app.py` |
+| E1 | `predictions.jsonl` | `api-serve/app.py` `_record()` |
+
+Part 2 — seven stages and three explicit loops (① decision, ② label, ③ improvement):
+
+| code | notebook section | code lives in |
+|---|---|---|
+| A1 / A2 / A3 | fetch · explore · features | `pipeline/fetch_data.py` · notebook only · `common/features.py` |
+| B1 / B2 / B3 | train · threshold · promote | `trainer/train.py` (B1–B2); B3 is the notebook and `airflow/dags/fraud_retrain.py` |
+| C1 / C2 | endpoint · decision band | `serving/app.py` |
+| D1 / D2 | consumer · failure handling | `app/app.py` |
+| E1 / E2 | review queue · verdicts back | `labeling/label_config.xml` · `labeling/sync.py` |
+| F1 / F2 | build snapshot · hash on the run | `pipeline/build_dataset.py` · `trainer/train.py` |
+| G1 / G2 | retrain DAG · label-sync DAG | `airflow/dags/` |
+
+Module docstrings name their code. Adding or moving a stage means updating the SVG, the
+notebook and the docstring together, or the vocabulary rots.
 
 ## Commands
 
@@ -45,12 +80,17 @@ curl -X POST localhost:8000/reload                    # re-resolve @champion wit
 docker compose --profile tools --profile serve down
 ```
 
-The host-side workflow is `part1/notebooks/hub.ipynb`, which drives all of the above via
-`!docker compose` and the MLflow client. Its first cell walks up to the repo root (the folder
-holding `docker-compose.yml`) and `chdir`s there, so every `!docker compose` line resolves
-regardless of where the notebook was launched from. Host venv must be **Python 3.12** (pyarrow ships no cp314
-wheels) and holds only the MLflow client, pandas, numpy, requests, jupyterlab — Keras and torch
-live exclusively inside the containers.
+The host-side workflow is a notebook per part — `part1/notebooks/hub.ipynb` and
+`part2/notebooks/hub.ipynb` — driving all of the above via `!docker compose` and the MLflow
+client. Both first cells walk up to the repo root (the folder holding `docker-compose.yml`) and
+`chdir` there, so every `!docker compose` line resolves regardless of where the notebook was
+launched from. Part 2 uses `--profile part2` for everything, never `serve2`/`label`/`orchestrate`
+alone: `postgres` is not in those profiles, and compose refuses to start a service whose
+`depends_on` target is inactive. Host venv must be **Python 3.12** (pyarrow ships no cp314 wheels)
+and holds clients only — MLflow, pandas, numpy, requests, matplotlib, dvc, psycopg, jupyterlab.
+Keras and torch live exclusively inside the containers; the one exception is
+`part2/common/features.py`, which the notebook imports directly in A3 because it depends on
+nothing but pandas and numpy.
 
 ## Architecture
 
@@ -150,7 +190,8 @@ Part 2 additions worth knowing before editing it:
   palette comes from the `dataviz` skill's reference instance: categorical slots 1–2 for the
   two latency series, reserved status colors for decisions and breaker state (always paired
   with a text label, never color alone). Dark values are declared under both
-  `prefers-color-scheme` and `[data-theme]`.
+  `prefers-color-scheme` and `[data-theme]`. Both notebooks' A2 charts and both
+  `architecture.svg` files use the same slots — one palette across the project.
 
 Part 1's three containers **share nothing but the MLflow registry**.
 The decoupling is the pedagogical point: `api-serve/app.py` has never seen `trainer/train.py`.
@@ -163,7 +204,7 @@ Constraints that are load-bearing and easy to break:
   are stored as `file:///mlruns/artifacts/...` URIs with `--no-serve-artifacts`, so a URI
   written by the trainer must resolve identically inside api-serve. Change the mount point in
   one service and model loading breaks with a path error.
-- **Promotion is manual.** Notebook section 4 compares runs and sets the `champion` alias.
+- **Promotion is manual.** Notebook section C1–C2 compares runs and sets the `champion` alias.
   Nothing polls or promotes automatically. `api-serve` resolves the alias once at startup;
   `POST /reload` re-resolves it live.
 - **The registry is the only copy of a model.** No parallel export to the host, by design.

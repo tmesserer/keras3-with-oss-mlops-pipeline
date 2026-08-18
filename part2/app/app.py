@@ -1,4 +1,4 @@
-"""A transaction application that depends on the fraud endpoint.
+"""D1-D2 · A transaction application that depends on the fraud endpoint.
 
 This is the part of Part 2 that is not about machine learning at all. It replays
 fraudTest.csv as a live stream and has to answer the questions any real consumer of a

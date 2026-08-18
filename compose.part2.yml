@@ -120,8 +120,8 @@ services:
       - ./data:/data
 
   # ------------------------------------------------------------ review queue
-  # Label Studio CE, the open-source review UI (PRD.md named Labelbox, which has no
-  # self-hostable server -- see the corrections there). Shares the one Postgres and keeps
+  # Label Studio CE, the open-source review UI (the original plan named Labelbox, which has no
+  # self-hostable server -- see section E of the notebook). Shares the one Postgres and keeps
   # its own Django tables in it, alongside the three in part2/pipeline/schema.sql.
   #
   # NOT run as ${DOCKER_UID}: like postgres, the image fixes ownership of its own data dir
@@ -194,7 +194,7 @@ services:
 
   # ------------------------------------------------------------ orchestration
   # Airflow arrives LAST and automates nothing new: every task in part2/airflow/dags wraps a
-  # command that phases 1-5 already proved by hand. The retrain DAG starts a sibling
+  # command sections A-F of part2/notebooks/hub.ipynb already proved by hand. It starts a sibling
   # fraud-trainer container through the host's docker socket rather than training in-process,
   # so the training environment stays defined in exactly one image.
   #

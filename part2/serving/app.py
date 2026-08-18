@@ -1,4 +1,4 @@
-"""Scores one transaction and returns a DECISION, not a probability.
+"""C1-C2 · Scores one transaction and returns a DECISION, not a probability.
 
 The difference from Part 1's api-serve is the threshold. A fraud model emits P(fraud); turning
 that into approve / review / decline needs an operating point, and that point is a property of
@@ -6,7 +6,7 @@ the *model*, not of this server -- so it is read from the model version's run ta
 (`operating_threshold`, chosen by the trainer on validation data). Env vars can override it,
 which is how the application gets to watch its decision mix move under a changing threshold.
 
-Every score lands in Postgres. The review band is what feeds the human queue in Phase 4, and
+Every score lands in Postgres. The review band is what feeds the human queue in section E, and
 that only works if the transactions are queryable rather than sitting in a log file.
 """
 import json

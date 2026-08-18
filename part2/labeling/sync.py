@@ -1,4 +1,4 @@
-"""The human in the loop: review-band scores out to Label Studio, analyst verdicts back.
+"""E1-E2 · The human in the loop: review band out to Label Studio, analyst verdicts back.
 
 Two directions, and they fail differently, which is why they are separate code paths:
 

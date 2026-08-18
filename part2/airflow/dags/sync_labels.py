@@ -1,4 +1,4 @@
-"""Keep the review queue moving: push the review band out, pull analyst verdicts back.
+"""G2 · Keep the review queue moving: push the review band out, pull analyst verdicts back.
 
 label-sync already sweeps on its own timer (PUSH_INTERVAL). This DAG exists for the other
 direction: `POST /pull` re-reads annotations from Label Studio's API and is what recovers
