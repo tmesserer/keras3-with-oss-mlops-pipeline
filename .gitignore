@@ -5,7 +5,11 @@ data/*
 !data/derived/
 data/derived/*
 !data/derived/*.dvc
-mlruns/
+# mlruns/* rather than mlruns/, so .gitkeep survives: the directory has to exist in a
+# fresh clone, or the docker daemon creates it root-owned and mlflow-server cannot
+# create mlflow.db inside it ("sqlite3.OperationalError: unable to open database file").
+mlruns/*
+!mlruns/.gitkeep
 mlartifacts/
 *.npz
 *.db
