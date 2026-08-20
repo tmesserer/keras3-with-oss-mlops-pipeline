@@ -204,6 +204,13 @@ Constraints that are load-bearing and easy to break:
   are stored as `file:///mlruns/artifacts/...` URIs with `--no-serve-artifacts`, so a URI
   written by the trainer must resolve identically inside api-serve. Change the mount point in
   one service and model loading breaks with a path error.
+- **`mlruns/.gitkeep` is tracked, and `.gitignore` says `mlruns/*` so it survives.** A bind
+  mount whose host directory does not exist is created by the docker daemon as **root**, and
+  `mlflow-server` runs as `${DOCKER_UID}` — it then cannot create `mlflow.db` and dies with
+  `sqlite3.OperationalError: unable to open database file`. Shipping the directory in git is
+  what makes a fresh clone work. Same reason `inference/.gitkeep` exists; `data/` is covered by
+  the tracked `data/derived/*.dvc`. If it ever does go root-owned:
+  `docker run --rm -u 0 -v "$PWD/mlruns:/mlruns" alpine:3 chown -R $(id -u):$(id -g) /mlruns`.
 - **Promotion is manual.** Notebook section C1–C2 compares runs and sets the `champion` alias.
   Nothing polls or promotes automatically. `api-serve` resolves the alias once at startup;
   `POST /reload` re-resolves it live.
@@ -245,3 +252,21 @@ Both `train.py` and `app.py` are single-file, deliberately short, and comment th
 than the *what* — comments explain workarounds and design choices, not syntax. Match that.
 Configuration arrives through environment variables declared in `docker-compose.yml`; adding a
 knob means adding an env var with a default there, not a config file or a CLI flag.
+
+## Planned, not built yet
+
+**`slides/slides.html` — a course introduction for people with no IT background.** One file,
+sketched 2026-08-20; the details below are still to be expanded by the user before anything is
+written.
+
+- **Audience is non-technical.** Its job is to define the vocabulary the notebooks assume: what
+  a container image *is*, in one or two sentences, and so on for every term a reader without an
+  IT background would stall on.
+- **30 slides: 10 for Part 1, 20 for Part 2.** The ratio matches where the ideas are.
+- **The notebooks are the starting point, not the source to copy.** Slides restate a concept
+  only where the notebook assumes it instead of explaining it; anything the notebook already
+  covers well should be referenced, not duplicated. This is the one sanctioned exception to
+  "explanation belongs in a markdown cell" — a different audience, not a second copy of the
+  same explanation.
+- Expect it to reuse the existing vocabulary: the lettered stage codes, and the one palette
+  shared by both `architecture.svg` files, both notebooks' A2 charts and the Part 2 dashboard.
