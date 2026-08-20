@@ -64,8 +64,10 @@ beyond the images themselves.
 
 `.env` sets `COMPOSE_FILE=docker-compose.yml:compose.part1.yml`, which is what lets a bare
 `docker compose` see every service without `-f` flags. **If `.env` is missing, only the base
-file loads and `trainer`/`api-serve` appear not to exist.** Create it with
-`cp .env.example .env` then set `DOCKER_UID`/`DOCKER_GID` to your own ids.
+file loads and `trainer`/`api-serve` appear not to exist.** Both notebooks' first cell writes
+it from `.env.example`, substituting `DOCKER_UID`/`DOCKER_GID`/`DOCKER_SOCK_GID` for this
+machine's, and never overwrites an existing `.env` (it may hold edited Label Studio
+credentials). By hand it is `cp .env.example .env` plus the `sed` line in that file's header.
 
 ```bash
 docker compose --profile tools --profile serve build

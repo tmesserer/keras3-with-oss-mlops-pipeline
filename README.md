@@ -9,7 +9,8 @@ teach — an application that must keep answering when the endpoint times out, a
 that buys the labels production never gives you, and a DVC-hashed derived dataset that makes a
 retrained model traceable to exact bytes — then wraps the lot in Airflow. Both parts share one
 MLflow registry and one Postgres, and everything you need to know is in the notebooks: read them in
-order, run the cells, and don't skip the manual steps. To set up: `cp .env.example .env` and set
-`DOCKER_UID`/`DOCKER_GID` to your own ids (`id -u`, `id -g`), create a virtualenv and
+order, run the cells, and don't skip the manual steps. To set up: create a virtualenv and
 `pip install -r requirements-host.txt` into it (clients only — Keras and torch live exclusively
-inside the containers), then open the Part 1 notebook and start at its first cell.
+inside the containers), then open the Part 1 notebook and start at its first cell — that cell
+writes `.env` from `.env.example` with your own `DOCKER_UID`/`DOCKER_GID`, and leaves an
+existing `.env` alone.
