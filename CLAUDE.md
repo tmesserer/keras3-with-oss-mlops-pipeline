@@ -267,8 +267,12 @@ endpoint. They do not define ML basics.
 - **Slides own the concepts, the notebooks own the operations.** This narrows the older rule
   above: explanation still never goes into a new markdown *file*, but a concept explained on a
   slide must not be explained again in a notebook cell. The notebook says what a cell does and
-  how long it takes; the slide says why the thing exists. Part 1's notebook was trimmed to
-  match on 2026-08-20 and now points at slide numbers; Part 2's still carries everything.
+  how long it takes; the slide says why the thing exists. Both notebooks were trimmed to match
+  on 2026-08-20 and now point at slide numbers ("slide 17 explains why…"). What a trimmed
+  notebook keeps beyond the operations is the repo-specific *why* no slide carries: the crc32
+  salting, the `label-sync.local` alias, the `data/*` gitignore rule, the MLflow 3
+  `models:/m-<id>` resolution, the known rough edges. Renumbering a deck means re-checking those
+  pointers.
 - **The only sanctioned copies of a diagram live in the decks**, which inline the
   `architecture.svg` files so their stages can be revealed one press at a time. Each copy drops
   the file's own `<style>` and takes its colours from `deck.css` instead, and its class names
