@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Part 1 — MLflow, containers, one loop</title>
+<link rel="stylesheet" href="deck.css">
+<style>
+  /* One copy of part1/notebooks/architecture.svg, inlined so its stages can be revealed
+     one at a time. Its own colour rules were dropped: the classes below take their values
+     from deck.css, so the diagram follows the deck's light and dark themes. Part 1 is
+     frozen, so this copy should never need to change — if the .svg does, re-inline it. */
+  #arch { width: 100%; height: 100%; font-family: inherit; }
+  #arch .a-surface { fill: none; }
+  #arch .a-card    { fill: var(--card); stroke: var(--line); stroke-width: 1.2; }
+  #arch .a-band    { fill: none; stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  #arch .a-h1      { fill: var(--ink); font-size: 17px; font-weight: 650; }
+  #arch .a-h2      { fill: var(--ink2); font-size: 12px; }
+  #arch .a-title   { fill: var(--ink); font-size: 12.5px; font-weight: 650; letter-spacing: .04em; }
+  #arch .a-item    { fill: var(--ink2); font-size: 11px; }
+  #arch .a-code    { fill: var(--ink); font-size: 11px; font-weight: 650; }
+  #arch .a-note    { fill: var(--ink3); font-size: 9.5px; }
+  #arch .a-rule    { stroke: var(--rule); stroke-width: 1; }
+  #arch .a-flow    { stroke: var(--ink2); stroke-width: 1.6; fill: none; }
+  #arch .a-mk      { fill: var(--ink2); }
+  #arch .a-l1      { stroke: var(--c1); }
+  #arch .a-t1      { fill: var(--c1); font-size: 11.5px; font-weight: 650; }
+</style>
+<style>
+  /* The layer stack on slide 6, and the folder map on slide 8. */
+  .stack { display: flex; flex-direction: column; gap: .3em; width: 100%; }
+  .layer {
+    border: 1px solid var(--line); border-radius: .35em; background: var(--card);
+    padding: .5em .7em; font-size: .68em; line-height: 1.3;
+  }
+  .layer b { display: block; color: var(--ink); font-weight: 650; }
+  .layer span { color: var(--ink3); font-size: .85em; }
+  .layer.rw { border-color: var(--c2); background: var(--c2-soft); }
+  .layer.ro { color: var(--ink2); }
+  .stack .tag {
+    font-size: .58em; color: var(--ink3); text-align: center; letter-spacing: .06em;
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================= 1 · the map ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · the map</span>
+  </header>
+  <div class="body">
+    <div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 640" id="arch"
+     font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img"
+     aria-label="Part 1 architecture: stages A to E around the MLflow registry, and one manual loop">
+  <defs>
+    <marker id="arch-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="a-mk" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="arch-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path fill="var(--c1)" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="a-surface" x="0" y="0" width="1180" height="640"/>
+
+  <text class="a-h1" x="30" y="36">Part 1 — three containers, one registry, one loop</text>
+  <text class="a-h2" x="30" y="58">The containers share nothing but the registry. Every section below carries one of these codes, and so does the file it drives.</text>
+
+  <!-- ================= row 1: A B C D ================= -->
+  <g id="dg-a" class="frag" data-frag="1">
+    <rect class="a-card" x="30" y="88" width="210" height="118" rx="10"/>
+    <text class="a-title" x="46" y="116">A · DATA</text>
+    <line class="a-rule" x1="46" y1="128" x2="224" y2="128"/>
+    <text class="a-item" x="46" y="150"><tspan class="a-code">A1</tspan>  mnist.npz, cached</text>
+    <text class="a-item" x="46" y="170"><tspan class="a-code">A2</tspan>  look at the digits</text>
+    <text class="a-note" x="46" y="190">60k train · 10k test · balanced</text>
+  </g>
+
+  <g id="dg-b" class="frag" data-frag="2">
+    <rect class="a-card" x="320" y="88" width="210" height="118" rx="10"/>
+    <text class="a-title" x="336" y="116">B · TRAIN</text>
+    <line class="a-rule" x1="336" y1="128" x2="514" y2="128"/>
+    <text class="a-item" x="336" y="150"><tspan class="a-code">B1</tspan>  build the images</text>
+    <text class="a-item" x="336" y="170"><tspan class="a-code">B2</tspan>  mlflow-server :5000</text>
+    <text class="a-item" x="336" y="190"><tspan class="a-code">B3</tspan>  three runs, one cell each</text>
+  </g>
+
+  <g id="dg-c" class="frag" data-frag="4">
+    <rect class="a-card" x="610" y="88" width="210" height="118" rx="10"/>
+    <text class="a-title" x="626" y="116">C · SELECT</text>
+    <line class="a-rule" x1="626" y1="128" x2="804" y2="128"/>
+    <text class="a-item" x="626" y="150"><tspan class="a-code">C1</tspan>  compare on accuracy</text>
+    <text class="a-item" x="626" y="170"><tspan class="a-code">C2</tspan>  move the @champion</text>
+    <text class="a-item" x="626" y="190">      alias — by hand</text>
+  </g>
+
+  <g id="dg-d" class="frag" data-frag="5">
+    <rect class="a-card" x="910" y="88" width="210" height="118" rx="10"/>
+    <text class="a-title" x="926" y="116">D · SERVE</text>
+    <line class="a-rule" x1="926" y1="128" x2="1104" y2="128"/>
+    <text class="a-item" x="926" y="150"><tspan class="a-code">D1</tspan>  api-serve :8000</text>
+    <text class="a-item" x="926" y="170"><tspan class="a-code">D2</tspan>  /predict, two ways</text>
+    <text class="a-note" x="926" y="190">has never seen train.py</text>
+  </g>
+
+  <!-- ================= the registry ================= -->
+  <g id="dg-reg" class="frag" data-frag="3">
+    <rect class="a-card" x="460" y="296" width="400" height="76" rx="10"/>
+    <text class="a-title" x="476" y="324">MLFLOW — THE SPINE</text>
+    <text class="a-item" x="476" y="348">runs · metrics · artifacts · versions · @champion</text>
+  </g>
+
+  <!-- ================= E ================= -->
+  <g id="dg-e" class="frag" data-frag="6">
+    <rect class="a-card" x="910" y="436" width="210" height="100" rx="10"/>
+    <text class="a-title" x="926" y="464">E · OBSERVE</text>
+    <line class="a-rule" x1="926" y1="476" x2="1104" y2="476"/>
+    <text class="a-item" x="926" y="498"><tspan class="a-code">E1</tspan>  predictions.jsonl</text>
+    <text class="a-note" x="926" y="518">one JSON line per request</text>
+  </g>
+
+  <!-- ================= flows ================= -->
+  <!-- Grouped by stage so the slide deck (slides/part1.html) can reveal them one at a
+       time. Every group is visible by default; only the deck hides any of them. -->
+  <g id="fl-ab" class="frag" data-frag="2">
+    <path class="a-flow" marker-end="url(#arch-a)" d="M240,147 H314"/>
+    <text class="a-note" x="277" y="139" text-anchor="middle">60k images</text>
+  </g>
+  <g id="fl-bc" class="frag" data-frag="4">
+    <path class="a-flow" marker-end="url(#arch-a)" d="M530,147 H604"/>
+    <text class="a-note" x="567" y="139" text-anchor="middle">3 versions</text>
+  </g>
+  <g id="fl-cd" class="frag" data-frag="5">
+    <path class="a-flow" marker-end="url(#arch-a)" d="M820,147 H904"/>
+    <text class="a-note" x="862" y="139" text-anchor="middle">@champion</text>
+  </g>
+
+  <g id="fl-breg" class="frag" data-frag="3">
+    <path class="a-flow" marker-end="url(#arch-a)" d="M490,206 V290"/>
+    <text class="a-note" x="500" y="252">every run, logged</text>
+  </g>
+  <g id="fl-creg" class="frag" data-frag="4">
+    <path class="a-flow" marker-end="url(#arch-a)" d="M715,206 V290"/>
+    <text class="a-note" x="725" y="252">the alias moves</text>
+  </g>
+  <g id="fl-regd" class="frag" data-frag="5">
+    <path class="a-flow" marker-end="url(#arch-a)" d="M860,334 H960 V212"/>
+    <text class="a-note" x="950" y="250" text-anchor="end">resolved at startup</text>
+  </g>
+
+  <g id="fl-de" class="frag" data-frag="6">
+    <path class="a-flow" marker-end="url(#arch-a)" d="M1060,206 V430"/>
+    <text class="a-note" x="1070" y="390">every prediction</text>
+  </g>
+
+  <!-- ================= the loop ================= -->
+  <g id="dg-loop" class="frag" data-frag="7">
+    <path class="a-flow a-l1" marker-end="url(#arch-a1)" d="M910,486 H370 V212"/>
+    <text class="a-t1" x="640" y="452" text-anchor="middle">① one loop — and you are the scheduler</text>
+    <text class="a-note" x="640" y="470" text-anchor="middle">read the log, change a hyperparameter, train again, promote again</text>
+  </g>
+
+  <!-- ================= bridge to Part 2 ================= -->
+  <g id="dg-next" class="frag" data-frag="8">
+    <rect class="a-band" x="30" y="556" width="1090" height="56" rx="10"/>
+    <text class="a-title" x="46" y="580">NOT HERE YET</text>
+    <text class="a-item" x="46" y="600">No application depending on the endpoint · no human labels · no versioned dataset · no scheduler — that is Part 2</text>
+  </g>
+</svg></div>
+  </div>
+</section>
+
+<!-- ======================= 2 · train vs infer ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · vocabulary</span>
+    <h2>Training and inference are two different jobs</h2>
+    <p class="sub">Your course spends most of its time on the left box. This course is mostly
+      about what has to happen around the right one.</p>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent frag" data-frag="1">
+        <h3>Training</h3>
+        <ul>
+          <li class="plain">Reads 60,000 examples, many times over.</li>
+          <li class="plain">Takes minutes or hours, and needs a lot of computing power.</li>
+          <li class="plain">Starts, finishes, and stops. Nobody is waiting on the other side.</li>
+          <li class="plain">Produces one file: the trained model.</li>
+        </ul>
+      </div>
+      <div class="card accent-2 frag" data-frag="2">
+        <h3>Inference</h3>
+        <ul>
+          <li class="plain">Reads one example: the one a user just sent.</li>
+          <li class="plain">Must answer in milliseconds, again and again.</li>
+          <li class="plain">Never stops. If it stops, something visible breaks.</li>
+          <li class="plain">Produces one answer, plus a line in a log.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="lead frag" data-frag="3">One <b>run</b> is one training job: its settings, its
+      scores, and the model file it produced. Part 1 does three runs, and serves one of them.</p>
+    <div class="callout frag" data-frag="4">The two jobs have opposite needs. That is the reason
+      Part 1 puts them in two separate boxes, and the reason the next slides are about boxes.</div>
+  </div>
+</section>
+
+<!-- ======================= 3 · two evaluations ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · C1 and E1</span>
+    <h2>You will evaluate the model twice, and the two are not the same</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent frag" data-frag="1">
+        <h3>Evaluation after training</h3>
+        <ul>
+          <li class="plain">On a <b>test set</b> you kept aside before training.</li>
+          <li class="plain">You have the true answers, so you can count the mistakes.</li>
+          <li class="plain">It gives one number, and that number decides which run you ship.</li>
+          <li class="plain">It happens once, before anyone uses the model.</li>
+        </ul>
+      </div>
+      <div class="card accent-2 frag" data-frag="2">
+        <h3>Evaluation after inference</h3>
+        <ul>
+          <li class="plain">On the real requests the running model answered.</li>
+          <li class="plain"><b>Nobody wrote down the true answers.</b> You only know what the
+            model said, and how fast it said it.</li>
+          <li class="plain">It never stops, because the world does not stop changing.</li>
+          <li class="plain">It cannot give you accuracy. Not by itself.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="3"><b>So where do the true answers come from?</b>
+      In Part 1, from nowhere: you get a log file and your own eyes. Part 2 answers this
+      question properly, by sending some decisions to a human being and storing the verdict.</div>
+  </div>
+</section>
+
+<!-- ======================= 4 · mlflow ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · B2, C1, C2</span>
+    <h2>MLflow is two things: a logbook and a catalogue</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1"><b>The logbook.</b> Every training run writes its
+            settings, its scores and its model file into MLflow. Nothing is written on a
+            sticky note.</li>
+          <li class="frag" data-frag="3"><b>The catalogue.</b> Finished models are registered
+            under a name, as numbered <b>model versions</b>: version 1, version 2, version 3.</li>
+          <li class="frag" data-frag="5"><b>The alias.</b> An <b>alias</b> is a movable name.
+            <code>@champion</code> points at exactly one version, and you can move it at any
+            moment.</li>
+          <li class="frag" data-frag="7">The server asks for <code>models:/mnist-keras@champion</code>
+            and for nothing else. <b>Moving the alias changes what is served, with no change
+            to any code.</b></li>
+        </ul>
+        <p class="small frag" data-frag="8">MLflow runs as a small web application on
+          <code>localhost:5000</code>, so all of this is visible in your browser.</p>
+      </div>
+      <figure>
+        <svg viewBox="0 0 470 320" role="img" aria-label="Runs are logged, versions are registered, the champion alias points at one version">
+          <defs>
+            <marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path fill="var(--ink2)" d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+          <g class="frag" data-frag="1">
+            <text x="10" y="16" fill="var(--ink3)" font-size="11" letter-spacing="1.2">RUNS — THE LOGBOOK</text>
+            <rect x="10" y="26" width="450" height="34" rx="6" fill="var(--card)" stroke="var(--line)"/>
+            <text x="24" y="48" fill="var(--ink)" font-size="13">mlp-128</text>
+            <text x="200" y="48" fill="var(--ink2)" font-size="13">3 epochs</text>
+            <text x="380" y="48" fill="var(--ink2)" font-size="13">0.977</text>
+          </g>
+          <g class="frag" data-frag="2">
+            <rect x="10" y="66" width="450" height="34" rx="6" fill="var(--card)" stroke="var(--c1)"/>
+            <text x="24" y="88" fill="var(--ink)" font-size="13">cnn-32</text>
+            <text x="200" y="88" fill="var(--ink2)" font-size="13">5 epochs</text>
+            <text x="380" y="88" fill="var(--c1)" font-size="13" font-weight="650">0.991</text>
+          </g>
+          <g class="frag" data-frag="2">
+            <rect x="10" y="106" width="450" height="34" rx="6" fill="var(--card)" stroke="var(--line)"/>
+            <text x="24" y="128" fill="var(--ink)" font-size="13">cnn-16-sgd</text>
+            <text x="200" y="128" fill="var(--ink2)" font-size="13">3 epochs</text>
+            <text x="380" y="128" fill="var(--ink2)" font-size="13">0.412</text>
+          </g>
+          <path class="frag" data-frag="3" d="M235,140 V176" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m4)"/>
+          <g class="frag" data-frag="3">
+            <text x="10" y="200" fill="var(--ink3)" font-size="11" letter-spacing="1.2">MNIST-KERAS — THE CATALOGUE</text>
+            <rect x="10" y="210" width="140" height="44" rx="6" fill="var(--card)" stroke="var(--line)"/>
+            <text x="26" y="238" fill="var(--ink2)" font-size="13">version 1</text>
+          </g>
+          <g class="frag" data-frag="4">
+            <rect x="165" y="210" width="140" height="44" rx="6" fill="var(--card)" stroke="var(--line)"/>
+            <text x="181" y="238" fill="var(--ink2)" font-size="13">version 2</text>
+            <rect x="320" y="210" width="140" height="44" rx="6" fill="var(--card)" stroke="var(--line)"/>
+            <text x="336" y="238" fill="var(--ink2)" font-size="13">version 3</text>
+          </g>
+          <g class="frag" data-frag="5">
+            <rect x="165" y="272" width="140" height="32" rx="16" fill="var(--c1-soft)" stroke="var(--c1)"/>
+            <text x="235" y="293" text-anchor="middle" fill="var(--c1)" font-size="13" font-weight="650">@champion</text>
+            <path d="M235,272 V258" stroke="var(--c1)" stroke-width="1.6" fill="none"/>
+          </g>
+          <g class="frag" data-frag="6">
+            <path d="M305,288 H400 V258" stroke="var(--c1)" stroke-width="1.6" fill="none" stroke-dasharray="4 4"/>
+            <text x="410" y="292" fill="var(--ink3)" font-size="11">move it</text>
+          </g>
+        </svg>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 5 · why containers ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · B1</span>
+    <h2>Why any of this runs in containers</h2>
+    <p class="sub">A <b>container</b> is a packaged, isolated environment: one program, plus
+      everything that program needs to run, kept apart from your machine.</p>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card frag" data-frag="1">
+        <h3>What you gain</h3>
+        <ul>
+          <li class="plain">The same environment on your laptop, on a colleague's laptop, and
+            on a server. The famous sentence "it works on my machine" stops being a problem.</li>
+          <li class="plain">Nothing is installed on your laptop. Keras and torch never touch
+            your own Python.</li>
+          <li class="plain">Two programs that need different versions of the same library can
+            run side by side.</li>
+          <li class="plain">You delete the container and nothing is left behind.</li>
+        </ul>
+      </div>
+      <div class="card frag" data-frag="2">
+        <h3>Why two of them, not one</h3>
+        <ul>
+          <li class="plain"><b>The trainer</b> needs Keras, torch and the dataset. It is a large
+            image, it works hard for a few minutes, and then it exits.</li>
+          <li class="plain"><b>The server</b> must start fast, stay up for days, and answer HTTP
+            requests. It needs much less.</li>
+          <li class="plain">Different requirements, different images. Neither one carries the
+            other's weight.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="3">Part 1 runs three containers: MLflow, the trainer,
+      and the server. <b>Nothing trains inside your notebook.</b> The notebook only gives orders.</div>
+  </div>
+</section>
+
+<!-- ======================= 6 · image layers ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · B1</span>
+    <h2>An image is a stack of read-only layers</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="5"><b>An image</b> is the packaged filesystem a container
+            starts from. It is read only, and it never changes.</li>
+          <li class="frag" data-frag="5">It is built in <b>layers</b>. Each instruction in the
+            recipe adds one.</li>
+          <li class="frag" data-frag="6">Layers are cached. Change <code>train.py</code> and only
+            the top layer is built again. That is why the first build takes minutes and the
+            second takes seconds.</li>
+          <li class="frag" data-frag="7">Starting a container adds <b>one thin writable layer</b>
+            on top. Stop the container, and that layer is gone. Anything you want to keep must
+            be written somewhere else.</li>
+          <li class="frag" data-frag="8">Images normally live in an image <b>registry</b>, such
+            as Docker Hub. In this course your own laptop plays that role: you build the image
+            and it stays local.</li>
+        </ul>
+      </div>
+      <div class="stack">
+        <div class="layer rw frag" data-frag="4"><b>writable layer &nbsp;·&nbsp; added when the container starts</b>
+          <span>everything the program writes here disappears when the container is removed</span></div>
+        <div class="tag frag" data-frag="4">▲ the container &nbsp;/&nbsp; the image ▼</div>
+        <div class="layer ro frag" data-frag="3"><b>COPY train.py</b><span>your code — a few kilobytes, rebuilt every time you edit it</span></div>
+        <div class="layer ro frag" data-frag="2"><b>pip install keras torch mlflow</b><span>the libraries — well over a gigabyte, built once</span></div>
+        <div class="layer ro frag" data-frag="1"><b>python:3.11-slim</b><span>a minimal Linux with Python already in it</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 7 · CMD and env ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · B2 and B3</span>
+    <h2>The image is fixed. What you pass at launch is not.</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1">The <b>CMD</b> is the command the container runs when it
+            starts. It is written inside the image, and you can replace it at launch.</li>
+          <li class="frag" data-frag="3">Everything that differs between two training runs is
+            passed as an <b>environment variable</b>: a name and a value, handed to the program
+            at the moment it starts.</li>
+          <li class="frag" data-frag="5"><b>You never rebuild an image to change a
+            hyperparameter.</b> Change the number, run the cell again. That is the whole edit
+            cycle.</li>
+          <li class="frag" data-frag="6">The same mechanism starts MLflow itself: its port, its
+            database and its file folder are arguments, not code.</li>
+        </ul>
+      </div>
+      <div>
+        <p class="small frag" data-frag="2">One training run — the trainer starts, trains, records
+          the run, and exits.</p>
+        <pre class="frag" data-frag="2"><code>docker compose --profile tools run --rm \
+  <span class="hl">-e RUN_NAME=cnn-32</span> <span class="hl">-e KIND=cnn</span> \
+  <span class="hl">-e SIZE=32</span> <span class="hl">-e LR=1e-3</span> <span class="hl">-e EPOCHS=5</span> \
+  trainer</code></pre>
+        <p class="small frag" data-frag="4">The next run changes two numbers. The image is
+          untouched.</p>
+        <pre class="frag" data-frag="4"><code>docker compose --profile tools run --rm \
+  -e RUN_NAME=mlp-128 <span class="hl">-e KIND=mlp</span> \
+  -e SIZE=128 -e LR=1e-3 <span class="hl">-e EPOCHS=3</span> \
+  trainer</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 8 · volumes ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · the shared folder</span>
+    <h2>A volume is a folder of yours, lent to a container</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="2">A container starts empty and forgets everything when it
+            stops. A <b>volume</b> is how you give it a folder from your own disk that survives.</li>
+          <li class="frag" data-frag="3"><code>./mlruns</code> on your laptop appears as
+            <code>/mlruns</code> inside <b>every</b> container, at the same address on purpose.</li>
+          <li class="frag" data-frag="4">The trainer writes the model file there. The server reads
+            the same file back. <b>The two containers never speak to each other.</b></li>
+          <li class="frag" data-frag="5">So you can delete every container and lose nothing. The
+            runs, the models and the alias are on your disk.</li>
+        </ul>
+      </div>
+      <figure>
+        <svg viewBox="0 0 460 300" role="img" aria-label="Three folders on the laptop, mounted into the three containers">
+          <g class="frag" data-frag="1">
+            <rect x="8" y="20" width="180" height="230" rx="8" fill="var(--card)" stroke="var(--line)"/>
+            <text x="24" y="44" fill="var(--ink3)" font-size="11" letter-spacing="1.2">YOUR LAPTOP</text>
+            <text x="24" y="80" fill="var(--ink)" font-size="13" font-family="ui-monospace, monospace">./mlruns</text>
+            <text x="24" y="98" fill="var(--ink3)" font-size="11">runs, models, the alias</text>
+            <text x="24" y="140" fill="var(--ink)" font-size="13" font-family="ui-monospace, monospace">./data</text>
+            <text x="24" y="158" fill="var(--ink3)" font-size="11">the dataset, downloaded once</text>
+            <text x="24" y="200" fill="var(--ink)" font-size="13" font-family="ui-monospace, monospace">./inference</text>
+            <text x="24" y="218" fill="var(--ink3)" font-size="11">one line per prediction</text>
+          </g>
+          <g class="frag" data-frag="3" stroke="var(--c1)" stroke-width="1.6" fill="none" stroke-dasharray="5 4">
+            <path d="M188,74 H272"/><path d="M188,134 H272"/><path d="M188,194 H272"/>
+          </g>
+          <g class="frag" data-frag="3">
+            <rect x="272" y="52" width="180" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/>
+            <text x="288" y="72" fill="var(--ink)" font-size="13" font-weight="650">mlflow-server</text>
+            <text x="288" y="88" fill="var(--ink3)" font-size="11" font-family="ui-monospace, monospace">/mlruns</text>
+            <rect x="272" y="112" width="180" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/>
+            <text x="288" y="132" fill="var(--ink)" font-size="13" font-weight="650">trainer</text>
+            <text x="288" y="148" fill="var(--ink3)" font-size="11" font-family="ui-monospace, monospace">/mlruns · /data</text>
+            <rect x="272" y="172" width="180" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/>
+            <text x="288" y="192" fill="var(--ink)" font-size="13" font-weight="650">api-serve</text>
+            <text x="288" y="208" fill="var(--ink3)" font-size="11" font-family="ui-monospace, monospace">/mlruns · /inference</text>
+          </g>
+          <text class="frag" data-frag="4" x="230" y="276" text-anchor="middle" fill="var(--ink3)" font-size="11">same folder, same address, three containers</text>
+        </svg>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 9 · the dataset ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · A1 and A2</span>
+    <h2>The dataset is deliberately easy</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="2">MNIST: 70,000 handwritten digits, 28 by 28 pixels, grey
+            on black. 60,000 for training, 10,000 for testing.</li>
+          <li class="frag" data-frag="3"><b>The classes are balanced</b> — about 6,000 examples of
+            every digit. Accuracy is therefore an honest score, and you can choose a model with
+            it.</li>
+          <li class="frag" data-frag="4">In Part 2, only 0.58% of the rows are fraud. There,
+            accuracy becomes a lie that reads as 99.6%.</li>
+          <li class="frag" data-frag="5">Some digits are genuinely unclear, even to you. That is
+            why a good score is 99-point-something and not 100.</li>
+        </ul>
+        <div class="callout frag" data-frag="6">When the data cannot surprise you, every surprise
+          comes from the pipeline. The pipeline is the subject of this course.</div>
+      </div>
+      <figure class="frag" data-frag="1">
+        <img src="data:image/png;base64,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" alt="Thirty MNIST digits, three examples of each digit from zero to nine" style="border-radius:.4em">
+        <figcaption>three examples of each class, exactly as the model receives them</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 10 · serving ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 1 · D1, D2, E1</span>
+    <h2>Serving is a normal web server with a model inside</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1">An <b>endpoint</b> is one address that accepts a request
+            and returns an answer. Here it is <code>POST /predict</code>.</li>
+          <li class="frag" data-frag="2">Requests arrive as <b>JSON</b>: text. The model needs
+            numbers of an exact shape: 784 pixels, arranged as 28 × 28 × 1, as decimals
+            between 0 and 1.</li>
+          <li class="frag" data-frag="3"><b>Pydantic checks the request before the model sees
+            it.</b> A wrong length or a wrong type gets a clear error message, instead of a
+            crash deep inside the model.</li>
+          <li class="frag" data-frag="4">The server resolves <code>@champion</code> once, when it
+            starts. <code>POST /reload</code> makes it look again, without a restart.</li>
+          <li class="frag" data-frag="5">Every answer is appended to
+            <code>predictions.jsonl</code>. That file is stage E, and Part 2 is built on it.</li>
+        </ul>
+      </div>
+      <figure>
+        <svg viewBox="0 0 460 300" role="img" aria-label="A request is validated, then scored, then logged">
+          <defs>
+            <marker id="m10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path fill="var(--ink2)" d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+          <g class="frag" data-frag="1">
+            <rect x="8" y="24" width="444" height="40" rx="8" fill="var(--card)" stroke="var(--line)"/>
+            <text x="24" y="49" fill="var(--ink)" font-size="12.5" font-family="ui-monospace, monospace">POST /predict &nbsp; {"pixels": [0.0, 0.0, 0.13, … ]}</text>
+          </g>
+          <path class="frag" data-frag="3" d="M230,64 V92" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m10)"/>
+          <g class="frag" data-frag="3">
+            <rect x="8" y="100" width="444" height="52" rx="8" fill="var(--c2-soft)" stroke="var(--c2)"/>
+            <text x="24" y="124" fill="var(--ink)" font-size="13" font-weight="650">Pydantic — is this really 784 numbers?</text>
+            <text x="24" y="142" fill="var(--ink2)" font-size="11.5">no → 422, and a message saying what was wrong &nbsp;·&nbsp; yes → continue</text>
+          </g>
+          <path class="frag" data-frag="4" d="M230,152 V180" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m10)"/>
+          <g class="frag" data-frag="4">
+            <rect x="8" y="188" width="444" height="52" rx="8" fill="var(--card)" stroke="var(--c1)"/>
+            <text x="24" y="212" fill="var(--ink)" font-size="13" font-weight="650">the champion model</text>
+            <text x="24" y="230" fill="var(--ink2)" font-size="11.5">reshape to 28 × 28 × 1, score, return the digit and the confidence</text>
+          </g>
+          <path class="frag" data-frag="5" d="M230,240 V268" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m10)"/>
+          <text class="frag" data-frag="5" x="230" y="288" text-anchor="middle" fill="var(--ink3)" font-size="12" font-family="ui-monospace, monospace">predictions.jsonl — one JSON object per line</text>
+        </svg>
+      </figure>
+    </div>
+    <div class="callout frag" data-frag="6">That is Part 1. Now open
+      <code>part1/notebooks/hub.ipynb</code> and run it. The notebook gives the commands; these
+      slides gave the meaning.</div>
+  </div>
+</section>
+
+<div class="hint"><kbd>↑</kbd> <kbd>↓</kbd> slide &nbsp;·&nbsp; <kbd>←</kbd> <kbd>→</kbd> reveal &nbsp;·&nbsp; <kbd>f</kbd> full screen &nbsp;·&nbsp; <kbd>d</kbd> dark</div>
+<script src="deck.js"></script>
+</body>
+</html>

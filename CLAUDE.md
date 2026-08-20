@@ -15,6 +15,9 @@ credit-card dataset and adds what Part 1 can't teach: an application depending o
 a human review queue feeding labels back, and a versioned derived dataset. Both parts share one
 MLflow registry and one Postgres.
 
+**Students start at `slides/`, then run the notebooks.** The decks carry the concepts (see
+"The slides" at the end of this file); the notebooks carry the operations.
+
 **The two notebooks are the documentation.** `part1/notebooks/hub.ipynb` and
 `part2/notebooks/hub.ipynb` carry every explanation this project has; `README.md` is one
 paragraph on purpose and must stay that way, and there is no PRD (it was folded into the Part 2
@@ -253,20 +256,39 @@ than the *what* — comments explain workarounds and design choices, not syntax.
 Configuration arrives through environment variables declared in `docker-compose.yml`; adding a
 knob means adding an env var with a default there, not a config file or a CLI flag.
 
-## Planned, not built yet
+## The slides
 
-**`slides/slides.html` — a course introduction for people with no IT background.** One file,
-sketched 2026-08-20; the details below are still to be expanded by the user before anything is
-written.
+**`slides/` is where a student starts.** Three decks, opened straight from the filesystem —
+`slides.html` (course introduction, 2 slides), `part1.html` (10 slides, built) and
+`part2.html` (20 slides, **not written yet**). The audience has no IT background, so the decks
+define the vocabulary the notebooks assume: container, image, layer, registry, volume,
+endpoint. They do not define ML basics.
 
-- **Audience is non-technical.** Its job is to define the vocabulary the notebooks assume: what
-  a container image *is*, in one or two sentences, and so on for every term a reader without an
-  IT background would stall on.
-- **30 slides: 10 for Part 1, 20 for Part 2.** The ratio matches where the ideas are.
-- **The notebooks are the starting point, not the source to copy.** Slides restate a concept
-  only where the notebook assumes it instead of explaining it; anything the notebook already
-  covers well should be referenced, not duplicated. This is the one sanctioned exception to
-  "explanation belongs in a markdown cell" — a different audience, not a second copy of the
-  same explanation.
-- Expect it to reuse the existing vocabulary: the lettered stage codes, and the one palette
-  shared by both `architecture.svg` files, both notebooks' A2 charts and the Part 2 dashboard.
+- **Slides own the concepts, the notebooks own the operations.** This narrows the older rule
+  above: explanation still never goes into a new markdown *file*, but a concept explained on a
+  slide must not be explained again in a notebook cell. The notebook says what a cell does and
+  how long it takes; the slide says why the thing exists. Part 1's notebook was trimmed to
+  match on 2026-08-20 and now points at slide numbers; Part 2's still carries everything.
+- **The only sanctioned copy of a diagram lives in `slides/part1.html`**, which inlines
+  `part1/notebooks/architecture.svg` so its stages can be revealed one press at a time. The
+  copy drops the file's own `<style>` and takes its colours from `deck.css` instead, and its
+  class names are prefixed `a-` so nothing collides. The source SVG now wraps each stage in
+  `<g id="dg-…">` / `<g id="fl-…">`; those ids are the reveal order and are load-bearing for
+  the deck, harmless in the notebook.
+- **`deck.css` and `deck.js` are shared by all three decks.** No build step, no CDN, no
+  modules — a classic `<script src>` so `file://` behaves like `http://`. Everything is sized
+  from `--u`, one unit of a fixed 16:9 canvas, so a slide looks the same on a projector and
+  prints to PDF unchanged.
+- **Navigation is two independent axes.** Up/Down moves between slides, Left/Right steps the
+  reveals inside one slide. Right on the last reveal does nothing on purpose: the axes never
+  mix, so you cannot lose your place while talking. `f` is full screen, `d` toggles the theme.
+  Reveal order is `data-frag="N"`, numeric, and elements sharing an N appear together.
+- **Every slide carries the same footnote**, written once by `deck.js`: *Slides and project
+  were created using AI, really.*
+- The palette is the project palette — the same `dataviz` slots used by both
+  `architecture.svg` files, both notebooks' A2 charts and the Part 2 dashboard.
+
+Part 1's ten slides: the map (the diagram, revealed in eight steps) · training vs inference ·
+two evaluations · what MLflow is · why containers · image layers · `CMD` and env at launch ·
+volumes · the dataset · serving and Pydantic.
+

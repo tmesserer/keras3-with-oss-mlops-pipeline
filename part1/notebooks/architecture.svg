@@ -45,7 +45,7 @@
   <text class="h2" x="30" y="58">The containers share nothing but the registry. Every section below carries one of these codes, and so does the file it drives.</text>
 
   <!-- ================= row 1: A B C D ================= -->
-  <g>
+  <g id="dg-a">
     <rect class="card" x="30" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="46" y="116">A · DATA</text>
     <line class="rule" x1="46" y1="128" x2="224" y2="128"/>
@@ -54,7 +54,7 @@
     <text class="note" x="46" y="190">60k train · 10k test · balanced</text>
   </g>
 
-  <g>
+  <g id="dg-b">
     <rect class="card" x="320" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="336" y="116">B · TRAIN</text>
     <line class="rule" x1="336" y1="128" x2="514" y2="128"/>
@@ -63,7 +63,7 @@
     <text class="item" x="336" y="190"><tspan class="code">B3</tspan>  three runs, one cell each</text>
   </g>
 
-  <g>
+  <g id="dg-c">
     <rect class="card" x="610" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="626" y="116">C · SELECT</text>
     <line class="rule" x1="626" y1="128" x2="804" y2="128"/>
@@ -72,7 +72,7 @@
     <text class="item" x="626" y="190">      alias — by hand</text>
   </g>
 
-  <g>
+  <g id="dg-d">
     <rect class="card" x="910" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="926" y="116">D · SERVE</text>
     <line class="rule" x1="926" y1="128" x2="1104" y2="128"/>
@@ -82,14 +82,14 @@
   </g>
 
   <!-- ================= the registry ================= -->
-  <g>
+  <g id="dg-reg">
     <rect class="card" x="460" y="296" width="400" height="76" rx="10"/>
     <text class="title" x="476" y="324">MLFLOW — THE SPINE</text>
     <text class="item" x="476" y="348">runs · metrics · artifacts · versions · @champion</text>
   </g>
 
   <!-- ================= E ================= -->
-  <g>
+  <g id="dg-e">
     <rect class="card" x="910" y="436" width="210" height="100" rx="10"/>
     <text class="title" x="926" y="464">E · OBSERVE</text>
     <line class="rule" x1="926" y1="476" x2="1104" y2="476"/>
@@ -98,30 +98,50 @@
   </g>
 
   <!-- ================= flows ================= -->
-  <path class="flow" marker-end="url(#a)" d="M240,147 H314"/>
-  <text class="note" x="277" y="139" text-anchor="middle">60k images</text>
-  <path class="flow" marker-end="url(#a)" d="M530,147 H604"/>
-  <text class="note" x="567" y="139" text-anchor="middle">3 versions</text>
-  <path class="flow" marker-end="url(#a)" d="M820,147 H904"/>
-  <text class="note" x="862" y="139" text-anchor="middle">@champion</text>
+  <!-- Grouped by stage so the slide deck (slides/part1.html) can reveal them one at a
+       time. Every group is visible by default; only the deck hides any of them. -->
+  <g id="fl-ab">
+    <path class="flow" marker-end="url(#a)" d="M240,147 H314"/>
+    <text class="note" x="277" y="139" text-anchor="middle">60k images</text>
+  </g>
+  <g id="fl-bc">
+    <path class="flow" marker-end="url(#a)" d="M530,147 H604"/>
+    <text class="note" x="567" y="139" text-anchor="middle">3 versions</text>
+  </g>
+  <g id="fl-cd">
+    <path class="flow" marker-end="url(#a)" d="M820,147 H904"/>
+    <text class="note" x="862" y="139" text-anchor="middle">@champion</text>
+  </g>
 
-  <path class="flow" marker-end="url(#a)" d="M490,206 V290"/>
-  <text class="note" x="500" y="252">every run, logged</text>
-  <path class="flow" marker-end="url(#a)" d="M715,206 V290"/>
-  <text class="note" x="725" y="252">the alias moves</text>
-  <path class="flow" marker-end="url(#a)" d="M860,334 H960 V212"/>
-  <text class="note" x="950" y="250" text-anchor="end">resolved at startup</text>
+  <g id="fl-breg">
+    <path class="flow" marker-end="url(#a)" d="M490,206 V290"/>
+    <text class="note" x="500" y="252">every run, logged</text>
+  </g>
+  <g id="fl-creg">
+    <path class="flow" marker-end="url(#a)" d="M715,206 V290"/>
+    <text class="note" x="725" y="252">the alias moves</text>
+  </g>
+  <g id="fl-regd">
+    <path class="flow" marker-end="url(#a)" d="M860,334 H960 V212"/>
+    <text class="note" x="950" y="250" text-anchor="end">resolved at startup</text>
+  </g>
 
-  <path class="flow" marker-end="url(#a)" d="M1060,206 V430"/>
-  <text class="note" x="1070" y="390">every prediction</text>
+  <g id="fl-de">
+    <path class="flow" marker-end="url(#a)" d="M1060,206 V430"/>
+    <text class="note" x="1070" y="390">every prediction</text>
+  </g>
 
   <!-- ================= the loop ================= -->
-  <path class="flow l1" marker-end="url(#a1)" d="M910,486 H370 V212"/>
-  <text class="t1" x="640" y="452" text-anchor="middle">① one loop — and you are the scheduler</text>
-  <text class="note" x="640" y="470" text-anchor="middle">read the log, change a hyperparameter, train again, promote again</text>
+  <g id="dg-loop">
+    <path class="flow l1" marker-end="url(#a1)" d="M910,486 H370 V212"/>
+    <text class="t1" x="640" y="452" text-anchor="middle">① one loop — and you are the scheduler</text>
+    <text class="note" x="640" y="470" text-anchor="middle">read the log, change a hyperparameter, train again, promote again</text>
+  </g>
 
   <!-- ================= bridge to Part 2 ================= -->
-  <rect class="band" x="30" y="556" width="1090" height="56" rx="10"/>
-  <text class="title" x="46" y="580">NOT HERE YET</text>
-  <text class="item" x="46" y="600">No application depending on the endpoint · no human labels · no versioned dataset · no scheduler — that is Part 2</text>
+  <g id="dg-next">
+    <rect class="band" x="30" y="556" width="1090" height="56" rx="10"/>
+    <text class="title" x="46" y="580">NOT HERE YET</text>
+    <text class="item" x="46" y="600">No application depending on the endpoint · no human labels · no versioned dataset · no scheduler — that is Part 2</text>
+  </g>
 </svg>

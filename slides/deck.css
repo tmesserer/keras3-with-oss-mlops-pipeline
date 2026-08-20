@@ -1,0 +1,190 @@
+/* Shared look for the three decks: slides.html, part1.html, part2.html.
+   No build step and no CDN, on purpose — open any deck straight from the filesystem.
+   Every size is derived from --u, one unit of a fixed 16:9 canvas, so a slide looks the
+   same on a laptop and on a projector, and prints to PDF unchanged. */
+
+:root {
+  --u: min(6.25vw, 11.111vh);
+
+  --bg:    #fcfcfb;
+  --card:  #ffffff;
+  --line:  #d8d7d0;
+  --rule:  #e1e0d9;
+  --ink:   #0b0b0b;
+  --ink2:  #52514e;
+  --ink3:  #898781;
+
+  --c1: #2a78d6;   /* categorical slot 1 — same blue as the loops in both diagrams */
+  --c2: #eb6834;   /* slot 2 */
+  --c3: #1baf7a;   /* slot 3 */
+  --c1-soft: #e8f0fb;
+  --c2-soft: #fdeee7;
+  --c3-soft: #e6f6f0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1a19; --card: #232322; --line: #3a3a37; --rule: #33332f;
+    --ink: #ffffff; --ink2: #c3c2b7; --ink3: #a3a199;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+    --c1-soft: #1c2a3b; --c2-soft: #33231b; --c3-soft: #172b25;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1a1a19; --card: #232322; --line: #3a3a37; --rule: #33332f;
+  --ink: #ffffff; --ink2: #c3c2b7; --ink3: #a3a199;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+  --c1-soft: #1c2a3b; --c2-soft: #33231b; --c3-soft: #172b25;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+/* ---------- the canvas ---------- */
+
+.slide {
+  position: absolute; inset: 0; margin: auto;
+  width: calc(var(--u) * 16);
+  height: calc(var(--u) * 9);
+  font-size: calc(var(--u) * 0.285);
+  padding: 1.5em 1.9em 1.9em;
+  box-sizing: border-box;
+  display: none;
+  flex-direction: column;
+}
+.slide.current { display: flex; }
+
+.slide > header { margin-bottom: .85em; }
+.kicker {
+  display: block;
+  font-size: .52em; font-weight: 650; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--c1); margin-bottom: .5em;
+}
+.slide h1 { font-size: 1.55em; line-height: 1.12; margin: 0; letter-spacing: -.015em; }
+.slide h2 { font-size: 1.15em; line-height: 1.15; margin: 0; letter-spacing: -.01em; }
+.slide h2 + .sub, .slide h1 + .sub {
+  margin: .45em 0 0; font-size: .74em; color: var(--ink2); max-width: 34em;
+}
+.body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .8em; }
+
+/* ---------- text ---------- */
+
+p { margin: 0 0 .55em; line-height: 1.45; }
+.lead { font-size: .8em; color: var(--ink2); max-width: 30em; }
+ul { margin: 0; padding: 0; list-style: none; }
+li {
+  position: relative; padding-left: 1.1em; margin-bottom: .62em;
+  font-size: .78em; line-height: 1.4; color: var(--ink2); max-width: 30em;
+}
+li::before {
+  content: ""; position: absolute; left: 0; top: .5em;
+  width: .34em; height: .34em; border-radius: 50%; background: var(--c1);
+}
+li.plain::before { background: var(--line); }
+li b, p b, .term { color: var(--ink); font-weight: 650; }
+.small { font-size: .66em; color: var(--ink3); line-height: 1.4; }
+
+code, .code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .88em; color: var(--ink);
+  background: var(--c1-soft); border-radius: .25em; padding: .06em .3em;
+}
+pre {
+  margin: 0; background: var(--card); border: 1px solid var(--line);
+  border-radius: .4em; padding: .7em .8em;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .6em; line-height: 1.65; color: var(--ink); overflow: hidden;
+}
+pre code { background: none; padding: 0; font-size: 1em; }
+pre .cm { color: var(--ink3); }
+pre .hl { color: var(--c2); font-weight: 650; }
+
+/* ---------- blocks ---------- */
+
+.cols { display: grid; gap: .9em; align-items: start; min-height: 0; }
+.diagram .cols, .cols.fill { flex: 1; }
+.cols.two   { grid-template-columns: 1fr 1fr; }
+.cols.three { grid-template-columns: 1fr 1fr 1fr; }
+.cols.wide-left  { grid-template-columns: 1.35fr 1fr; }
+.cols.wide-right { grid-template-columns: 1fr 1.35fr; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: .5em;
+  padding: .8em .9em; box-sizing: border-box;
+}
+.card h3 {
+  margin: 0 0 .4em; font-size: .62em; font-weight: 650;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink);
+}
+.card p, .card li { font-size: .72em; margin-bottom: .4em; }
+.card li:last-child, .card p:last-child { margin-bottom: 0; }
+.card .where {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .58em; color: var(--ink3); margin: -.25em 0 .55em;
+}
+.card .where a { color: var(--ink3); }
+.card.accent { border-left: .18em solid var(--c1); }
+.card.accent-2 { border-left: .18em solid var(--c2); }
+.card.accent-3 { border-left: .18em solid var(--c3); }
+
+.callout {
+  border-left: .18em solid var(--c2); background: var(--c2-soft);
+  padding: .6em .8em; border-radius: 0 .4em .4em 0;
+  font-size: .76em; line-height: 1.45; color: var(--ink);
+}
+.callout b { font-weight: 650; }
+
+figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .5em; }
+figure svg, figure img { max-width: 100%; height: auto; display: block; }
+.cols figure svg { max-width: 87%; }  /* keep diagram type close to body type */
+figcaption { font-size: .6em; color: var(--ink3); text-align: center; }
+
+.diagram { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.diagram svg { max-height: 100%; max-width: 100%; }
+
+/* ---------- fragments ---------- */
+
+.frag { opacity: 0; transition: opacity .3s ease, transform .3s ease; }
+.frag:not(g):not(svg) { transform: translateY(.3em); }
+.frag.on { opacity: 1; transform: none; }
+
+/* ---------- chrome ---------- */
+
+.progress {
+  position: fixed; top: 0; left: 0; height: 2px; background: var(--c1);
+  transition: width .25s ease; z-index: 5;
+}
+.footnote, .counter {
+  position: fixed; bottom: calc(var(--u) * .34);
+  font-size: calc(var(--u) * .145); color: var(--ink3); z-index: 5;
+}
+.footnote { left: calc(var(--u) * .5); }
+.counter  { right: calc(var(--u) * .5); font-variant-numeric: tabular-nums; }
+.counter .dots { color: var(--c1); letter-spacing: .1em; margin-right: .6em; }
+.hint {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--u) * .3); font-size: calc(var(--u) * .15);
+  color: var(--ink3); z-index: 5; transition: opacity .4s ease;
+}
+kbd {
+  font-family: inherit; border: 1px solid var(--line); border-radius: .3em;
+  padding: 0 .35em; color: var(--ink2); background: var(--card);
+}
+a { color: var(--c1); }
+
+/* ---------- print: every slide, every fragment, one page each ---------- */
+
+@media print {
+  @page { size: landscape; margin: 0; }
+  :root { --u: 6.25vw; }
+  body { overflow: visible; }
+  .slide { position: relative; display: flex; page-break-after: always; inset: auto; }
+  .frag { opacity: 1; transform: none; }
+  .progress, .counter, .hint { display: none; }
+  .footnote { position: absolute; }
+}
