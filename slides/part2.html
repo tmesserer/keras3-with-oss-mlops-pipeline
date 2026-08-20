@@ -47,7 +47,7 @@
   .tbl .p1 { color: var(--ink2); }
   .tbl .p2 { color: var(--ink); }
 
-  /* slide 25 — the adoption ladder, top rung last */
+  /* slide 24 — the adoption ladder, top rung last */
   .stack { display: flex; flex-direction: column; gap: .3em; width: 100%; }
   .layer {
     border: 1px solid var(--line); border-radius: .35em; background: var(--card);
@@ -58,7 +58,7 @@
   .layer span { color: var(--ink3); }
   .layer.top { border-color: var(--c2); background: var(--c2-soft); }
 
-  /* slide 26 — a question and the record that answers it */
+  /* slide 25 — a question and the record that answers it */
   .pairs { display: grid; grid-template-columns: 1fr 1.2fr; gap: .8em 1.1em; font-size: .76em; }
   .pairs .q, .pairs .a { padding-bottom: .55em; border-bottom: 1px solid var(--rule); }
   .pairs .q { color: var(--ink); }
@@ -439,8 +439,8 @@ merchant "Kozey-..."  <span class="hl">merchant</span> 1663 of 2048</pre>
             <b>training/serving skew</b>: no error, no warning, and a model that tested well
             failing quietly in production.</li>
           <li class="plain"><b>The price is real.</b> Editing this one file changes both sides at
-            once, and makes every model already in the registry invalid. Slide 22 comes back to
-            what is not written down about that.</li>
+            once, and makes every model already in the registry invalid. Nothing in the registry
+            records which version of that file built a model's inputs.</li>
         </ul>
       </div>
       <div class="card accent-2 frag" data-frag="2">
@@ -1255,57 +1255,7 @@ outs:
   </div>
 </section>
 
-<!-- ======================= 22 · the code has no fingerprint ======================= -->
-<section class="slide">
-  <header>
-    <span class="kicker">Part 2 · F version · what is still missing</span>
-    <h2>The registry does not hold the code that builds the features</h2>
-    <p class="sub">The snapshot gave the data an identity. The code that turns a transaction into
-      numbers has none.</p>
-  </header>
-  <div class="body">
-    <div class="cols wide-left">
-      <div>
-        <ul>
-          <li class="frag" data-frag="2"><b>A registered version holds the network</b> — its shape
-            and its weights. It does not hold <code>features.py</code>. The endpoint gets that file
-            from its own image instead.</li>
-          <li class="frag" data-frag="3"><b>Both parts are needed, and only one is stored.</b> For any
-            version you can now prove which bytes it learned from. You cannot say which version
-            of the feature code built its inputs.</li>
-          <li class="frag" data-frag="4"><b>What is missing is the link.</b> MLflow writes the
-            commit onto a run by itself — but only when training runs inside a checkout of the
-            repository. Ours runs in a container holding two files and no history.</li>
-        </ul>
-      </div>
-      <div>
-        <pre class="frag" data-frag="1"><span class="cm"># tags on a fraud run, as the project stands</span>
-dataset        derived-parquet
-dvc_md5        <span class="hl">3f2a7c19…c81</span>  <span class="cm">← the data is named</span>
-keras_version  3.5.0
-backend        torch
-<span class="cm">…and nothing here names the code</span></pre>
-        <p class="small frag" data-frag="5" style="margin:.8em 0 .45em"><b>Three ways to close
-          it, weakest first.</b></p>
-        <div class="stack">
-          <div class="layer frag" data-frag="5"><b>Tag the run with the commit.</b>
-            <span>Cheap, and what MLflow would have done by itself. An image built from an edited
-            file still reports a clean commit.</span></div>
-          <div class="layer frag" data-frag="6"><b>Tag a fingerprint of the file.</b>
-            <span>The same trick as the data, one line beside <code>dvc_md5</code>. An edit cannot
-            hide from it.</span></div>
-          <div class="layer top frag" data-frag="7"><b>Copy the file into the model version.</b>
-            <span>Hand it to <code>log_model</code>, and the code travels with the model.</span></div>
-        </div>
-        <p class="small frag" data-frag="7" style="margin-top:.7em">The project stops here. The
-          fingerprint on the data and the missing one on the code are the same idea, and an
-          auditor asks about both.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= 23 · airflow and DAGs ======================= -->
+<!-- ======================= 22 · airflow and DAGs ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · G orchestrate · what Airflow is</span>
@@ -1360,7 +1310,7 @@ backend        torch
   </div>
 </section>
 
-<!-- ======================= 24 · the two DAGs ======================= -->
+<!-- ======================= 23 · the two DAGs ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · G orchestrate · G1 and G2, the two DAGs</span>
@@ -1406,7 +1356,7 @@ backend        torch
   </div>
 </section>
 
-<!-- ======================= 25 · the adoption ladder ======================= -->
+<!-- ======================= 24 · the adoption ladder ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · what to take to work</span>
@@ -1444,7 +1394,7 @@ backend        torch
   </div>
 </section>
 
-<!-- ======================= 26 · the regulator ======================= -->
+<!-- ======================= 25 · the regulator ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · why a bank cares</span>
@@ -1482,7 +1432,7 @@ backend        torch
   </div>
 </section>
 
-<!-- ======================= 27 · where an LLM plugs in ======================= -->
+<!-- ======================= 26 · where an LLM plugs in ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · the next thing you will be asked for</span>
@@ -1523,7 +1473,7 @@ backend        torch
   </div>
 </section>
 
-<!-- ======================= 28 · closing ======================= -->
+<!-- ======================= 27 · closing ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · where the loops meet</span>
