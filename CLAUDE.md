@@ -86,8 +86,8 @@ client. Both first cells walk up to the repo root (the folder holding `docker-co
 `chdir` there, so every `!docker compose` line resolves regardless of where the notebook was
 launched from. Part 2 uses `--profile part2` for everything, never `serve2`/`label`/`orchestrate`
 alone: `postgres` is not in those profiles, and compose refuses to start a service whose
-`depends_on` target is inactive. Host venv must be **Python 3.12** (pyarrow ships no cp314 wheels)
-and holds clients only — MLflow, pandas, numpy, requests, matplotlib, dvc, psycopg, jupyterlab.
+`depends_on` target is inactive. The host venv holds clients only — MLflow, pandas, numpy,
+requests, matplotlib, dvc, psycopg, jupyterlab.
 Keras and torch live exclusively inside the containers; the one exception is
 `part2/common/features.py`, which the notebook imports directly in A3 because it depends on
 nothing but pandas and numpy.
