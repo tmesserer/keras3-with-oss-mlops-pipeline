@@ -1,11 +1,11 @@
 """A3 · Raw transaction -> model inputs. Shared verbatim by the trainer and the serving image.
 
-This module is deliberately *dumb*: it parses dates and does arithmetic, and it learns
+This module is deliberately *simple*: it parses dates and does arithmetic, and it learns
 nothing. Every statistical transform (normalisation constants, category vocabularies) lives
 inside the Keras model, so the registry artifact stays self-contained.
 
 Why share code at all, when Part 1 made a point of api-serve never importing the trainer?
-Because these columns need date parsing and trigonometry that Keras layers can't express, and
+Because these columns need date parsing and trigonometry that Keras layers cannot express, and
 the alternative -- reimplementing them in the server -- is the classic training/serving skew
 bug. Sharing one file is the small, explicit price.
 
@@ -26,7 +26,7 @@ NUMERIC = ["amt", "log_amt", "hour", "dayofweek", "age_years", "distance_km", "l
 #
 # The obvious choice, keras.layers.StringLookup, requires TensorFlow even on the torch
 # backend (it wraps tf.lookup), and pulling a second framework into the image to map ~700
-# merchant names is a bad trade. Hashing also keeps this module stateless: there is no
+# merchant names is not worth the cost. Hashing also keeps this module stateless: there is no
 # learned vocabulary that would have to be persisted next to the model and kept in sync
 # with it. Buckets are sized well above the observed cardinality to keep collisions rare.
 CATEGORICAL = {"category": 32,    # 14 distinct
@@ -43,7 +43,7 @@ def _hash_bucket(values: np.ndarray, buckets: int) -> np.ndarray:
     """Stable string -> bucket index.
 
     crc32, not Python's hash(): hash() is salted per process (PYTHONHASHSEED), so the
-    trainer and the server would disagree on every bucket and the model would score noise.
+    trainer and the server would disagree on every bucket, and the inputs would be meaningless.
     """
     return np.array([zlib.crc32(str(v).encode()) % buckets for v in values], dtype="int32")
 

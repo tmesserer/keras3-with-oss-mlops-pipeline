@@ -5,7 +5,7 @@ Runs on the HOST, like fetch_data.py -- it needs `dvc add`, and dvc needs the gi
 The output is one parquet containing every labelled row available to the next training run:
 
   source='original'  the 1.3M rows of fraudTrain.csv, labels that came with the dataset
-  source='analyst'   transactions the model sent to review and a human then ruled on
+  source='analyst'   transactions the model sent to review and a human then judged
 
 The second group is the only new information in the system. It is also, deliberately, a
 *biased* sample: only review-band transactions are ever queued, so every analyst row sits
@@ -14,7 +14,7 @@ snapshot's base rate is not the population's. `n_analyst` is logged by the train
 effect stays traceable rather than surprising.
 
 `dvc add` turns the parquet into a content hash in a `.dvc` pointer. The pointer is
-committed; the parquet is not. That is the whole trick: git carries an exact identity for a
+committed; the parquet is not. That is the whole point: git carries an exact identity for a
 90MB file it never stores, and a model's run tag can name the data that produced it.
 """
 import os
@@ -33,7 +33,7 @@ CSV = ROOT / "data" / "fraud" / "fraudTrain.csv"
 PG = os.getenv("POSTGRES_DSN", "postgresql://mlops:mlops@localhost:5432/mlops")
 
 # The column list the model consumes, imported rather than restated: a snapshot missing a
-# column the trainer expects fails at fit time, long after this script has exited happily.
+# column the trainer expects fails at fit time, long after this script exited successfully.
 sys.path.insert(0, str(ROOT / "part2" / "common"))
 from features import RAW                                                   # noqa: E402
 
@@ -77,7 +77,7 @@ def reviewed() -> pd.DataFrame:
 
 def build() -> pd.DataFrame:
     # Concatenating an empty frame in would make pandas re-infer every dtype from all-NA
-    # columns; before any analyst has ruled on anything, there is simply nothing to add.
+    # columns; before any analyst has judged anything, there is simply nothing to add.
     parts = [p for p in (original(), reviewed()) if len(p)]
     df = pd.concat(parts, ignore_index=True) if len(parts) > 1 else parts[0]
 
@@ -86,7 +86,7 @@ def build() -> pd.DataFrame:
     df = df.drop_duplicates(subset="trans_num", keep="last")
 
     # Time order, stable, so two builds of the same rows produce byte-identical parquet and
-    # therefore the same DVC hash. A snapshot whose hash churns on rebuild versions nothing.
+    # therefore the same DVC hash. A snapshot whose hash changes on rebuild versions nothing.
     df = df.sort_values(["trans_date_trans_time", "trans_num"], kind="stable")
     return df[RAW + ["is_fraud"] + PROVENANCE].reset_index(drop=True)
 

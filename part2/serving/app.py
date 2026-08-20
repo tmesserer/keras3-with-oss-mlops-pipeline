@@ -124,7 +124,7 @@ def score_one(txn: dict) -> dict:
 
     label = txn.get("label")
     with _connect() as c:
-        # ON CONFLICT: replaying the same test file twice must not explode. The score is
+        # ON CONFLICT: replaying the same test file twice must not fail. The score is
         # updated in place, so the row always reflects the most recent model to see it.
         r = c.execute(
             """INSERT INTO scored_transactions
@@ -169,7 +169,7 @@ def score(txn: Transaction):
 
 @app.get("/score/sample/{i}")
 def score_sample(i: int):
-    """Zero-effort demo: pull row i out of fraudTest.csv and score it."""
+    """Simplest possible demo: take row i out of fraudTest.csv and score it."""
     if not DATA_FILE.exists():
         raise HTTPException(404, f"{DATA_FILE} missing -- run part2/pipeline/fetch_data.py")
     try:

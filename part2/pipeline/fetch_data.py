@@ -1,12 +1,12 @@
-"""A1 · Fetch the Sparkov fraud dataset into ./data/fraud. Idempotent: a no-op if it's there.
+"""A1 · Fetch the Sparkov fraud dataset into ./data/fraud. Idempotent: does nothing if present.
 
 Runs on the HOST (in the .venv), not in a container -- the trainer mounts ./data and
 expects the CSVs to already exist, exactly like Part 1's cached mnist.npz.
 
 Source is a public Google Drive file. Drive refuses to stream files this large without a
-confirm token, and a plain curl/wget happily saves the 2KB HTML warning page instead with
+confirm token, and a plain curl/wget silently saves the 2KB HTML warning page instead with
 exit code 0 -- which then surfaces much later as an unreadable CSV. gdown handles the
-token, and _assert_not_html below is the belt to that suspenders.
+token, and _assert_not_html below is the second check.
 """
 import io
 import sys
@@ -26,7 +26,7 @@ def _found() -> list[Path]:
 
 
 def _assert_not_html(blob: bytes, where: str) -> None:
-    """Drive's virus-scan interstitial is a 200 OK containing HTML. Catch it here."""
+    """Drive's virus-scan warning page is a 200 OK containing HTML. Catch it here."""
     head = blob[:512].lstrip().lower()
     if head.startswith((b"<!doctype html", b"<html")):
         sys.exit(

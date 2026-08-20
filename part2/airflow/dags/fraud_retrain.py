@@ -9,10 +9,10 @@ Two deliberate limits:
 
   * Building the snapshot is NOT a task. `dvc add` needs the git repo, and a pipeline that
     rewrites a pointer nobody reviewed would version data by accident. So the DAG *verifies*
-    the parquet still matches the committed .dvc pointer and fails loudly if it does not --
+    the parquet still matches the committed .dvc pointer and fails with an error if not --
     rebuilding stays `python part2/pipeline/build_dataset.py` on the host.
-  * Promotion is a comparison, not a rubber stamp. A run that does not beat the incumbent
-    on test PR-AUC skips the promote/reload half, and the champion stays where it is.
+  * Promotion is a comparison, not an automatic yes. A run that does not beat the current
+    champion on test PR-AUC skips the promote/reload half, and @champion stays where it is.
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ TRAINER_IMAGE = os.getenv("TRAINER_IMAGE", "keras-mlops-fraud-trainer:latest")
 
 # Restated from compose.part2.yml's fraud-trainer block, which stays the source of truth --
 # there is no way to ask compose for a service's environment from inside a DAG. Only the
-# hyperparameters below are meant to differ between a hand-run and a scheduled one.
+# hyperparameters below are meant to differ between a run started by hand and a scheduled one.
 TRAINER_ENV = {
     "MLFLOW_TRACKING_URI": MLFLOW,
     "KERAS_BACKEND": "torch",
@@ -74,8 +74,8 @@ def _client():
 def _artifact_dir(client, mv) -> str:
     """Where a model version's files actually sit under /mlruns.
 
-    MLflow 3 registers versions with source `models:/m-<logged_model_id>`, an indirection --
-    `storage_location` comes back None and the path only appears on the logged model behind
+    MLflow 3 registers versions with source `models:/m-<logged_model_id>`, which is a
+    reference to another record, not a path -- `storage_location` comes back None and the path only appears on the logged model behind
     it. Older versions still carry a plain file:// URI, hence both branches.
     """
     if mv.source.startswith("models:/m-"):
@@ -98,12 +98,12 @@ def _pointer_md5() -> str:
 @dag(
     dag_id="fraud_retrain",
     description="verify snapshot -> train -> compare -> promote @champion -> reload serving",
-    schedule=None,                      # triggered by hand; a fraud model does not retrain on a clock
+    schedule=None,                      # triggered by hand; a fraud model does not retrain on a schedule
     start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
     catchup=False,
     max_active_runs=1,                  # two trainers writing the same mlruns is not a scenario worth having
-    default_args={"retries": 0},        # a failed train should be read, not retried blindly
-    params={                            # defaults for the env overrides above; --conf wins over these
+    default_args={"retries": 0},        # a failed train should be read, not retried automatically
+    params={                            # defaults for the env overrides above; --conf overrides these
         "epochs": os.getenv("DAG_EPOCHS", "5"),
         "hidden": os.getenv("DAG_HIDDEN", "128,64"),
         "train_subset": os.getenv("DAG_TRAIN_SUBSET", "0"),
@@ -160,7 +160,7 @@ def fraud_retrain():
             Mount(source=f"{HOST_REPO}/mlruns", target="/mlruns", type="bind"),
             Mount(source=f"{HOST_REPO}/data", target="/data", type="bind", read_only=True),
         ],
-        mount_tmp_dir=False,            # the default /tmp bind is a docker-in-docker trap: the source path does not exist on the host
+        mount_tmp_dir=False,            # the default /tmp bind is a docker-in-docker mistake: that path does not exist on the host
         auto_remove="success",          # keep the container on failure, so its logs survive the DAG run
         docker_url="unix://var/run/docker.sock",
         api_version="auto",
@@ -188,7 +188,7 @@ def fraud_retrain():
                 f"{run.data.tags.get('dvc_md5')}, not {snapshot_md5}")
 
         # Registry rows outlive artifacts here (see CLAUDE.md): a dangling @champion fails
-        # at fraud-serve STARTUP, long after this DAG has gone green. Check now instead.
+        # at fraud-serve STARTUP, long after this DAG reported success. Check now instead.
         artifact = _artifact_dir(client, candidate)
         if not Path(artifact).exists():
             raise AirflowFailException(
@@ -239,7 +239,7 @@ def fraud_retrain():
     md5 = check_snapshot()
     promoted = promote(md5)
     # promote() already consumes md5, but DockerOperator returns nothing to consume, so the
-    # train -> promote edge has to be drawn by hand or Airflow would run them in parallel.
+    # train -> promote edge must be declared explicitly or Airflow would run them in parallel.
     md5 >> train >> promoted
     reload_serving(promoted)
 

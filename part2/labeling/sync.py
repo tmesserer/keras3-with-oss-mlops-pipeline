@@ -4,9 +4,9 @@ Two directions, and they fail differently, which is why they are separate code p
 
   push  - a loop that hands unreviewed review-band transactions to Label Studio as tasks.
           Idempotent through `review_tasks`; safe to run every minute forever.
-  back  - Label Studio calls POST /webhook the moment an annotation is saved. Webhooks are
-          fire-and-forget, so POST /pull re-reads every annotation from the API and upserts
-          it. Anything the webhook missed while this container was down is recovered there.
+  back  - Label Studio calls POST /webhook the moment an annotation is saved. A webhook is
+          sent once and never confirmed, so POST /pull re-reads every annotation from the
+          API and upserts it. That recovers anything missed while this container was down.
 
 Like txn-app, this service has NO ML dependency. It moves rows and JSON; it never asks what
 the model thought. The only thing it knows about the model is the version string it stamps
@@ -29,8 +29,8 @@ CONFIG = Path(os.getenv("LABEL_CONFIG", "/app/label_config.xml"))
 SCHEMA = Path(os.getenv("SCHEMA_SQL", "/app/schema.sql"))
 PG = os.environ["POSTGRES_DSN"]
 
-# Where Label Studio should call us back. Must be reachable from inside ITS container, so it
-# is a compose service name -- localhost would be Label Studio's own loopback.
+# Where Label Studio should call this service back. Must be reachable from inside ITS
+# container, so it is a compose service name -- localhost would point Label Studio at itself.
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "http://label-sync:8002/webhook")
 
 PUSH_INTERVAL = float(os.getenv("PUSH_INTERVAL", "30"))
@@ -115,8 +115,8 @@ def _distance(p: dict) -> str:
     """Straight-line km, computed here rather than imported from features.py.
 
     Importing it would give this service an opinion about the model's inputs. It needs a
-    number for a human to read, not the model's feature -- so eight lines of trigonometry
-    are cheaper than the coupling.
+    number for a human to read, not the model's feature, so eight lines of trigonometry
+    cost less than that dependency would.
     """
     from math import asin, cos, radians, sin, sqrt
     try:

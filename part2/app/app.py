@@ -47,7 +47,7 @@ STRINGS = ["trans_date_trans_time", "category", "merchant", "gender", "state", "
 STATE = {
     "running": False,
     "rate": float(os.getenv("RATE", "5")),   # transactions per second
-    "fault_injection": False,                # send to a black hole, to watch the app cope
+    "fault_injection": False,                # send to an address that never answers, to watch the app cope
     "breaker": "closed",                     # closed | open | half_open
     "consecutive_failures": 0,
     "opened_at": 0.0,
@@ -75,7 +75,7 @@ def rows():
 
 
 def breaker_allows() -> bool:
-    """Open circuit skips the call entirely -- the point is to stop hammering a dead service.
+    """Open circuit skips the call entirely -- the point is to stop calling a dead service.
 
     After the cooldown it lets exactly one probe through (half-open); success closes it,
     failure re-opens it for another cooldown.

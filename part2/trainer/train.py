@@ -46,8 +46,8 @@ TARGET_PRECISION = float(os.getenv("TARGET_PRECISION", "0.90"))
 
 
 def dvc_md5(pointer: Path) -> str | None:
-    """Content hash out of a .dvc pointer, parsed by hand -- dvc is a host tool and has no
-    business in this image. Mirrors read_md5() in part2/pipeline/build_dataset.py."""
+    """Content hash out of a .dvc pointer, parsed by hand -- dvc is a host tool and must not
+    be a dependency of this image. Mirrors read_md5() in part2/pipeline/build_dataset.py."""
     if not pointer.exists():
         return None
     for line in pointer.read_text().splitlines():
@@ -107,7 +107,7 @@ def build_model(train_df):
     for name in features.NUMERIC:
         inp = keras.Input(shape=(1,), name=name, dtype="float32")
         norm = layers.Normalization(name=f"norm_{name}")
-        norm.adapt(x[name])           # constants bake into the artifact
+        norm.adapt(x[name])           # constants are stored inside the artifact
         inputs[name] = inp
         encoded.append(norm(inp))
 

@@ -82,7 +82,7 @@ def predict(req: PredictRequest):
 
 @app.get("/predict/sample/{i}")
 def predict_sample(i: int):
-    """Zero-effort demo: curl localhost:8000/predict/sample/0"""
+    """Simplest possible demo: curl localhost:8000/predict/sample/0"""
     if not DATA_FILE.exists():
         raise HTTPException(404, "run the trainer first, it caches /data/mnist.npz")
     d = np.load(DATA_FILE)
