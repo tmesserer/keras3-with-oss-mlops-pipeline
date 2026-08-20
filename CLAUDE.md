@@ -259,8 +259,8 @@ knob means adding an env var with a default there, not a config file or a CLI fl
 ## The slides
 
 **`slides/` is where a student starts.** Three decks, opened straight from the filesystem —
-`slides.html` (course introduction, 2 slides), `part1.html` (10 slides, built) and
-`part2.html` (20 slides, **not written yet**). The audience has no IT background, so the decks
+`slides.html` (course introduction, 2 slides), `part1.html` (10 slides) and `part2.html`
+(28 slides). The audience has no IT background, so the decks
 define the vocabulary the notebooks assume: container, image, layer, registry, volume,
 endpoint. They do not define ML basics.
 
@@ -269,12 +269,22 @@ endpoint. They do not define ML basics.
   slide must not be explained again in a notebook cell. The notebook says what a cell does and
   how long it takes; the slide says why the thing exists. Part 1's notebook was trimmed to
   match on 2026-08-20 and now points at slide numbers; Part 2's still carries everything.
-- **The only sanctioned copy of a diagram lives in `slides/part1.html`**, which inlines
-  `part1/notebooks/architecture.svg` so its stages can be revealed one press at a time. The
-  copy drops the file's own `<style>` and takes its colours from `deck.css` instead, and its
-  class names are prefixed `a-` so nothing collides. The source SVG now wraps each stage in
-  `<g id="dg-…">` / `<g id="fl-…">`; those ids are the reveal order and are load-bearing for
-  the deck, harmless in the notebook.
+- **The only sanctioned copies of a diagram live in the decks**, which inline the
+  `architecture.svg` files so their stages can be revealed one press at a time. Each copy drops
+  the file's own `<style>` and takes its colours from `deck.css` instead, and its class names
+  are prefixed `a-` so nothing collides. Both source SVGs wrap each stage in `<g id="dg-…">` /
+  `<g id="fl-…">`; those ids are the reveal order and are load-bearing for the decks, harmless
+  in the notebooks.
+- **`part2.html` inlines that diagram three times, once per loop** — stages A–D and Postgres,
+  then E, then F and the G band — with the earlier stages kept visible under `.a-dim`. The
+  three copies carry `m1-`/`m2-`/`m3-` marker id prefixes so they can share one document. They
+  were produced mechanically from the source SVG — drop `<style>`, prefix classes with `a-`,
+  prefix marker ids, replace the hard-coded loop colours with `var(--c1..3)`, then mark each
+  stage group `frag`/`a-dim` or delete it. If the source SVG changes, redo that transformation
+  for all three rather than patching one copy by hand.
+- **`part2.html` declares `--good`/`--warning`/`--critical` locally**, copied from
+  `part2/app/index.html`, so one decision wears one colour across the whole project. They are
+  never used for a data series and never appear without a word beside them.
 - **`deck.css` and `deck.js` are shared by all three decks.** No build step, no CDN, no
   modules — a classic `<script src>` so `file://` behaves like `http://`. Everything is sized
   from `--u`, one unit of a fixed 16:9 canvas, so a slide looks the same on a projector and
@@ -291,4 +301,15 @@ endpoint. They do not define ML basics.
 Part 1's ten slides: the map (the diagram, revealed in eight steps) · training vs inference ·
 two evaluations · what MLflow is · why containers · image layers · `CMD` and env at launch ·
 volumes · the dataset · serving and Pydantic.
+
+Part 2's twenty-eight, in six acts: **the step up** (what Part 2 adds · docker compose ·
+Kubernetes) · **data and model** (map ① and Postgres · four facts about the data · PR-AUC and
+the threshold · what `features.py` computes · the two rules it obeys) · **loop ①** (the decision band · the simulated
+application · timeout, fallback, breaker · what an outage costs) · **loop ②** (map ② · what you
+cannot know without a human · labels are bought · build the review tool yourself · label-sync ·
+HITL is not free) · **loop ③** (map ③ · hashes and parquet · a dataset with an identity · the
+code that has no fingerprint · Airflow by analogy · the two DAGs) · **out of the classroom** (the adoption ladder · six
+questions an auditor asks · where an LLM plugs in · the closing map in words). Two charts on
+the outage slide use assumed costs, stated in the caption; the latencies are the real ones
+from D2.
 

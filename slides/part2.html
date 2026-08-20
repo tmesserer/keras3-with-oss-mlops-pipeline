@@ -1,0 +1,1566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Part 2 — three loops, one system</title>
+<link rel="stylesheet" href="deck.css">
+<style>
+  /* Three copies of part2/notebooks/architecture.svg, inlined so the map can be revealed
+     one stage at a time — once per loop. Each copy drops the file's own <style> and takes
+     its colours from deck.css through these a-* classes, so the diagram follows the deck's
+     light and dark themes. Marker ids carry an m1-/m2-/m3- prefix so three copies can live
+     in one document. Regenerate with the script noted in the commit if the .svg changes. */
+  .arch { width: 100%; height: 100%; font-family: inherit; }
+  .arch .a-surface { fill: none; }
+  .arch .a-card    { fill: var(--card); stroke: var(--line); stroke-width: 1.2; }
+  .arch .a-band    { fill: none; stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  .arch .a-h1      { fill: var(--ink); font-size: 17px; font-weight: 650; }
+  .arch .a-h2      { fill: var(--ink2); font-size: 12px; }
+  .arch .a-title   { fill: var(--ink); font-size: 12.5px; font-weight: 650; letter-spacing: .04em; }
+  .arch .a-item    { fill: var(--ink2); font-size: 11px; }
+  .arch .a-code    { fill: var(--ink); font-size: 11px; font-weight: 650; }
+  .arch .a-note    { fill: var(--ink3); font-size: 9.5px; }
+  .arch .a-rule    { stroke: var(--rule); stroke-width: 1; }
+  .arch .a-flow    { stroke: var(--ink2); stroke-width: 1.6; fill: none; }
+  .arch .a-mk      { fill: var(--ink2); }
+  .arch .a-l1      { stroke: var(--c1); }
+  .arch .a-l2      { stroke: var(--c2); }
+  .arch .a-l3      { stroke: var(--c3); }
+  .arch .a-t1      { fill: var(--c1); font-size: 11.5px; font-weight: 650; }
+  .arch .a-t2      { fill: var(--c2); font-size: 11.5px; font-weight: 650; }
+  .arch .a-t3      { fill: var(--c3); font-size: 11.5px; font-weight: 650; }
+  /* a stage that is running, but is not what this slide is about */
+  .arch .a-dim     { opacity: .32; }
+</style>
+<style>
+  /* Reserved status colours, taken unchanged from the Part 2 dashboard so that one decision
+     wears one colour across the whole project. Never used for a data series, and never
+     without a word beside them. */
+  :root { --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; }
+  .cols figure svg { max-width: 100%; }
+
+  /* slide 1 — the two-column comparison */
+  .tbl { display: grid; grid-template-columns: 8em 1fr 1fr; gap: .72em 1em; font-size: .78em; }
+  .tbl .h { font-size: .74em; letter-spacing: .09em; text-transform: uppercase; color: var(--ink3); }
+  .tbl .k { color: var(--ink3); }
+  .tbl .p1 { color: var(--ink2); }
+  .tbl .p2 { color: var(--ink); }
+
+  /* slide 25 — the adoption ladder, top rung last */
+  .stack { display: flex; flex-direction: column; gap: .3em; width: 100%; }
+  .layer {
+    border: 1px solid var(--line); border-radius: .35em; background: var(--card);
+    padding: .42em .7em; font-size: .66em; line-height: 1.3;
+  }
+  .layer { font-size: .7em; }
+  .layer b { color: var(--ink); font-weight: 650; }
+  .layer span { color: var(--ink3); }
+  .layer.top { border-color: var(--c2); background: var(--c2-soft); }
+
+  /* slide 26 — a question and the record that answers it */
+  .pairs { display: grid; grid-template-columns: 1fr 1.2fr; gap: .8em 1.1em; font-size: .76em; }
+  .pairs .q, .pairs .a { padding-bottom: .55em; border-bottom: 1px solid var(--rule); }
+  .pairs .q { color: var(--ink); }
+  .pairs .a { color: var(--ink2); }
+</style>
+</head>
+<body>
+
+<!-- ======================= 1 · what Part 2 adds ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · where Part 1 stopped</span>
+    <h2>Part 1 ended one step before the job starts</h2>
+    <p class="sub">The endpoint answered you. Nobody was using it, nothing was ever learned from
+      its answers, and nothing would have noticed if the model had quietly gone wrong.</p>
+  </header>
+  <div class="body">
+    <div class="tbl">
+      <span class="h"></span><span class="h">Part 1 · MNIST</span><span class="h">Part 2 · fraud</span>
+      <span class="k frag" data-frag="1">the data</span>
+      <span class="p1 frag" data-frag="1">60,000 clean images, balanced</span>
+      <span class="p2 frag" data-frag="1">1.85M transactions, 0.5% fraud, ordered by time</span>
+      <span class="k frag" data-frag="2">the answer</span>
+      <span class="p1 frag" data-frag="2">a label</span>
+      <span class="p2 frag" data-frag="2">a probability, plus a threshold that turns it into a decision</span>
+      <span class="k frag" data-frag="3">the consumer</span>
+      <span class="p1 frag" data-frag="3">you, with <code>curl</code></span>
+      <span class="p2 frag" data-frag="3">an application that must answer even when the model cannot</span>
+      <span class="k frag" data-frag="4">the labels</span>
+      <span class="p1 frag" data-frag="4">shipped inside the file</span>
+      <span class="p2 frag" data-frag="4">bought one at a time from a human reviewer</span>
+      <span class="k frag" data-frag="5">the dataset</span>
+      <span class="p1 frag" data-frag="5">fixed for ever</span>
+      <span class="p2 frag" data-frag="5">rebuilt, hashed and versioned every cycle</span>
+      <span class="k frag" data-frag="6">what runs it</span>
+      <span class="p1 frag" data-frag="6">you, by hand</span>
+      <span class="p2 frag" data-frag="6">you by hand first, then a scheduler running the same commands</span>
+    </div>
+    <div class="callout frag" data-frag="7">Four of those six rows are new work, and none of it is
+      modelling. <b>The model is the part that barely changes.</b></div>
+  </div>
+</section>
+
+<!-- ======================= 2 · docker compose ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · the stack</span>
+    <h2>Nine containers need a written plan</h2>
+    <p class="sub">A <b>compose file</b> is one text file that describes every container in a
+      project, and how they fit together.</p>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1">Part 1 ran three containers, and you started them one at
+            a time. Part 2 runs nine.</li>
+          <li class="frag" data-frag="2">The file names each <b>service</b>: which image, which
+            ports, which environment variables, which volumes.</li>
+          <li class="frag" data-frag="3">It also creates a private <b>network</b>. Services find
+            each other by name, so <code>mlflow-server</code> is an address.</li>
+          <li class="frag" data-frag="4"><code>depends_on</code> sets the start order. A
+            <b>profile</b> is a label, so <code>--profile part2</code> starts one part and leaves
+            the other alone.</li>
+          <li class="frag" data-frag="5">One command starts all of it, and one command removes it
+            again. Nothing else is installed on your machine.</li>
+        </ul>
+      </div>
+      <pre class="frag" data-frag="2"><span class="cm">services:</span>
+  fraud-serve:
+    image: keras-mlops-fraud-serve
+    ports: [<span class="hl">"8001:8001"</span>]
+    environment:
+      MLFLOW_TRACKING_URI: http://<span class="hl">mlflow-server</span>:5000
+      DATABASE_URL: postgres://…@<span class="hl">postgres</span>/mlops
+    volumes: ["./mlruns:/mlruns"]
+    depends_on: [mlflow-server, postgres]
+    profiles: ["part2", "serve2"]</pre>
+    </div>
+    <div class="callout frag" data-frag="6">You already know what a container is. Compose adds no
+      new idea — it is the written plan for many containers at once, kept in git beside the code.</div>
+  </div>
+</section>
+
+<!-- ======================= 3 · kubernetes ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · the stack</span>
+    <h2>What a business would use instead</h2>
+    <p class="sub">Compose runs containers on one machine, and assumes somebody is watching.
+      <b>Kubernetes</b> is the standard tool for the case where nobody is.</p>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent frag" data-frag="1">
+        <h3>What it adds</h3>
+        <ul>
+          <li class="plain"><b>It restarts what dies.</b> A container that crashes at three in the
+            morning comes back without you.</li>
+          <li class="plain"><b>It runs many copies.</b> Ten copies of the endpoint behind one
+            address, with the traffic shared between them.</li>
+          <li class="plain"><b>It updates without downtime.</b> A <b>rolling update</b> replaces
+            copies one by one, and returns to the old one if the new one fails.</li>
+          <li class="plain"><b>It chooses the machine.</b> With fifty servers, deciding where each
+            container runs stops being something a person can do.</li>
+        </ul>
+      </div>
+      <div class="card frag" data-frag="2">
+        <h3>What does not change</h3>
+        <ul>
+          <li class="plain">The same images you built here. The same environment variables. The
+            same registry, the same database.</li>
+          <li class="plain">Cloud or your own building: Kubernetes runs in both. Banks in
+            Luxembourg run it on their own hardware.</li>
+          <li class="plain">Only the thing that starts the containers changes. Everything this
+            course teaches sits above that line.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="3">This course stays on one laptop on purpose. You are
+      learning the loops, not the hosting. <b>The loops are the part that transfers.</b></div>
+  </div>
+</section>
+
+<!-- ======================= 4 · the map, loop 1 ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · the map, 1 of 3</span>
+  </header>
+  <div class="body">
+    <div class="diagram" style="max-height:56%; margin-bottom:.6em"><svg xmlns="http://www.w3.org/2000/svg" viewBox="18 14 1128 372" class="arch" role="img" aria-label="Loop ① — the shape you already know, plus two new boxes">
+      <defs>
+          <marker id="m1-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path class="a-mk" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m1-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c1)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m1-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c2)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m1-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c3)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+        </defs>
+        <rect class="a-surface" x="0" y="0" width="1180" height="660"/>
+        <text class="a-h1" x="30" y="36">Loop ① — the shape you already know, plus two new boxes</text>
+        <text class="a-h2" x="30" y="58">A, B and C are Part 1 under new names. D and Postgres are new, and everything after this slide hangs on them.</text>
+        <!-- ================= row 1: A B C D ================= -->
+        <g class="frag" data-frag="1">
+          <rect class="a-card" x="30" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="46" y="116">A · DATA</text>
+          <line class="a-rule" x1="46" y1="128" x2="224" y2="128"/>
+          <text class="a-item" x="46" y="150"><tspan class="a-code">A1</tspan>  fetch the Sparkov CSVs</text>
+          <text class="a-item" x="46" y="170"><tspan class="a-code">A2</tspan>  look before modelling</text>
+          <text class="a-item" x="46" y="190"><tspan class="a-code">A3</tspan>  features.py, shared</text>
+        </g>
+        <g class="frag" data-frag="1">
+          <rect class="a-card" x="320" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="336" y="116">B · TRAIN</text>
+          <line class="a-rule" x1="336" y1="128" x2="514" y2="128"/>
+          <text class="a-item" x="336" y="150"><tspan class="a-code">B1</tspan>  fraud-trainer, one run</text>
+          <text class="a-item" x="336" y="170"><tspan class="a-code">B2</tspan>  threshold from val</text>
+          <text class="a-item" x="336" y="190"><tspan class="a-code">B3</tspan>  registry → @champion</text>
+        </g>
+        <g class="frag" data-frag="2">
+          <rect class="a-card" x="610" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="626" y="116">C · SERVE</text>
+          <line class="a-rule" x1="626" y1="128" x2="804" y2="128"/>
+          <text class="a-item" x="626" y="150"><tspan class="a-code">C1</tspan>  fraud-serve :8001</text>
+          <text class="a-item" x="626" y="170"><tspan class="a-code">C2</tspan>  approve · review ·</text>
+          <text class="a-item" x="626" y="190">      decline</text>
+        </g>
+        <g class="frag" data-frag="3">
+          <rect class="a-card" x="910" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="926" y="116">D · CONSUME</text>
+          <line class="a-rule" x1="926" y1="128" x2="1104" y2="128"/>
+          <text class="a-item" x="926" y="150"><tspan class="a-code">D1</tspan>  txn-app :5500</text>
+          <text class="a-item" x="926" y="170"><tspan class="a-code">D2</tspan>  timeout · fallback ·</text>
+          <text class="a-item" x="926" y="190">      circuit breaker</text>
+        </g>
+        <!-- ================= the store ================= -->
+        <g class="frag" data-frag="4">
+          <rect class="a-card" x="610" y="296" width="510" height="76" rx="10"/>
+          <text class="a-title" x="626" y="324">POSTGRES — THE SPINE</text>
+          <text class="a-item" x="626" y="348">scored_transactions · app_requests · review_tasks · verdicts</text>
+        </g>
+        <!-- ================= row 3: F and E ================= -->
+        <!-- ================= flows ================= -->
+        <!-- A -> B -> C -->
+        <g class="frag" data-frag="1">
+          <path class="a-flow" marker-end="url(#m1-a)" d="M240,147 H314"/>
+          <text class="a-note" x="277" y="139" text-anchor="middle">1.3M rows</text>
+        </g>
+        <g class="frag" data-frag="2">
+          <path class="a-flow" marker-end="url(#m1-a)" d="M530,147 H604"/>
+          <text class="a-note" x="567" y="139" text-anchor="middle">@champion</text>
+        </g>
+        <!-- loop 1: C <-> D -->
+        <g class="frag" data-frag="3">
+          <path class="a-flow a-l1" marker-end="url(#m1-a1)" d="M820,130 H904"/>
+          <text class="a-note" x="862" y="122" text-anchor="middle">decision</text>
+          <path class="a-flow a-l1" marker-end="url(#m1-a1)" d="M910,168 H826"/>
+          <text class="a-note" x="862" y="186" text-anchor="middle">transaction</text>
+          <text class="a-t1" x="862" y="232" text-anchor="middle">① decision loop</text>
+          <text class="a-note" x="862" y="248" text-anchor="middle">seconds</text>
+        </g>
+        <!-- C, D -> postgres -->
+        <g class="frag" data-frag="4">
+          <path class="a-flow" marker-end="url(#m1-a)" d="M715,206 V290"/>
+          <text class="a-note" x="725" y="252">what the server did</text>
+          <path class="a-flow" marker-end="url(#m1-a)" d="M1015,206 V290"/>
+          <text class="a-note" x="1025" y="252">what the client saw</text>
+        </g>
+        <!-- loop 2: postgres <-> label studio -->
+        <!-- loop 3: postgres -> snapshot -> train -->
+        <!-- ================= G band ================= -->
+      </svg></div>
+    <div class="cols two">
+      <div class="card accent-2 frag" data-frag="4">
+        <h3>Postgres, the new box in the middle</h3>
+        <p><b>Postgres</b> is a database: tables of rows that several programs read and write
+          at the same time. Part 1 wrote a log file, and a file cannot be queried safely by two
+          services at once.</p>
+      </div>
+      <div class="card accent frag" data-frag="5">
+        <h3>Loop ① · seconds</h3>
+        <p>A transaction goes to the model, a decision comes back, an application lives with
+          it. This loop is the product; everything else keeps it honest.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 5 · the data ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · A data · A2 look before modelling</span>
+    <h2>Four facts about the data decide everything that follows</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent frag" data-frag="1">
+        <h3>172 normal for every fraud</h3>
+        <p>A model that always answers "not fraud" is 99.6% accurate and completely useless. So
+          accuracy cannot choose your model, and training must give the rare class extra weight.</p>
+      </div>
+      <div class="card accent frag" data-frag="2">
+        <h3>The same cards come back, again and again</h3>
+        <p>A fixed set of cardholders and 693 merchants, over two years. Every card therefore has
+          a history here, and "unusual for this card" would be strong signal. Amount, hour and
+          category separate fraud without it — which is what makes scoring one row at a time
+          possible at all. Slides 7 and 8 return to what that choice costs.</p>
+      </div>
+      <div class="card accent-2 frag" data-frag="3">
+        <h3>The fraud rate falls over two years</h3>
+        <p>The world changed while the data was collected. Change like this is called <b>drift</b>.
+          A model that was right in 2019 is less right in 2020, and no code will tell you.</p>
+      </div>
+      <div class="card accent-2 frag" data-frag="4">
+        <h3>The split is by time, not at random</h3>
+        <p>The test file begins 48 seconds after the training file ends. Shuffle the two together
+          and you train on the future to predict the past. That is <b>leakage</b>: every score you
+          report then looks excellent and is wrong.</p>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="5">And the fact the whole second half of this deck rests
+      on: <code>is_fraud</code> is a column in this file. <b>In production that column does not
+      exist.</b></div>
+  </div>
+</section>
+
+<!-- ======================= 6 · the score and the threshold ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · B train · B2 the threshold</span>
+    <h2>PR-AUC chooses the model. A person chooses the threshold.</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1">Accuracy sits at 0.998 while the model misses a third of
+            all fraud. It is logged on purpose, so that you can watch it lie.</li>
+          <li class="frag" data-frag="2"><b>PR-AUC</b> is the score that decides the champion. It
+            asks two questions only. Of the transactions you flagged, how many really were fraud?
+            And how much of the fraud did you find?</li>
+          <li class="frag" data-frag="3">At a <b>base rate</b> of 0.4%, a random model scores
+            0.004 on PR-AUC and 99.6% on accuracy. Only one of those numbers teaches you
+            anything.</li>
+          <li class="frag" data-frag="4"><b>The model does not output a decision.</b> For each
+            transaction it outputs P(fraud), between 0 and 1. The threshold is a cut on that
+            number: at 0.62, a transaction is declined when the model puts its chance of fraud at
+            62% or higher. <b>It is not 62% of the transactions.</b></li>
+          <li class="frag" data-frag="5"><b>Choosing that threshold is a business decision, not a
+            modelling one.</b> It trades declining good customers against letting fraud through,
+            and no library can make that trade for you.</li>
+          <li class="frag" data-frag="6">The trainer chooses <b>the decline threshold</b> on the
+            validation data — the slice it held back while training — and never on the test set.
+            It writes that number onto the run as a tag.</li>
+        </ul>
+      </div>
+      <div>
+        <pre class="frag" data-frag="6"><span class="cm"># tags on the run, in MLflow</span>
+test_pr_auc          0.781
+accuracy             0.998   <span class="cm">← varies by a rounding error</span>
+<span class="hl">operating_threshold  0.62</span>   <span class="cm">← decline at P(fraud) ≥ 0.62</span>
+dataset_md5          3f2a…c81</pre>
+        <p class="small frag" data-frag="7" style="margin-top:.7em">The threshold belongs to the
+          model, so it travels with the model and is promoted with the model. It is the contract
+          between the trainer and the server.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 7 · what features.py computes ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · A data · A3 the features file</span>
+    <h2>From one row of the file to the numbers the model reads</h2>
+    <p class="sub">A row is text, dates and coordinates. A neural network reads numbers.
+      <code>common/features.py</code> converts one into the other.</p>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1"><b>A timestamp becomes an hour and a weekday.</b> Fraud
+            keeps different hours from normal shopping.</li>
+          <li class="frag" data-frag="2"><b>A date of birth becomes an age in years</b>, counted
+            at the moment of the transaction.</li>
+          <li class="frag" data-frag="3"><b>Two pairs of coordinates become one distance.</b> The
+            card's home and the merchant, in kilometres. Fraud tends to happen far away.</li>
+          <li class="frag" data-frag="4"><b>An amount becomes two numbers</b>, itself and its
+            logarithm: amounts are heavily skewed, median 47 against a maximum of 28,949.</li>
+          <li class="frag" data-frag="5"><b>A name becomes a bucket number.</b> 693 merchant
+            names go through a checksum into one of 2048 buckets, and no list of names is stored
+            anywhere.</li>
+        </ul>
+      </div>
+      <div>
+        <pre class="frag" data-frag="6"><span class="cm">one row in            what the model receives</span>
+trans_..._time 22:32  <span class="hl">hour</span> 22 · <span class="hl">dayofweek</span> 6
+dob 1968-03-19        <span class="hl">age_years</span> 52.3
+lat,long + merch_...  <span class="hl">distance_km</span> 78.4
+amt 780.52            <span class="hl">amt</span> 780.52 · <span class="hl">log_amt</span> 6.66
+category "misc_net"   <span class="hl">category</span> 11 of 32
+merchant "Kozey-..."  <span class="hl">merchant</span> 1663 of 2048</pre>
+        <p class="small frag" data-frag="7" style="margin-top:.7em">Seven numbers and four
+          buckets, built from one row and nothing else. This is the whole of the feature
+          engineering in Part 2.</p>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="8"><b>Notice what it never does: it never learns.</b>
+      No average and no vocabulary is computed here. Every transform that depends on statistics
+      lives inside the Keras model, so the model in the registry is complete on its own — one
+      artifact, with nothing to ship beside it.</div>
+  </div>
+</section>
+
+<!-- ======================= 8 · the two rules that file obeys ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · A data · A3 two rules, and what they cost</span>
+    <h2>Both sides import that one file, and neither may look at history</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent frag" data-frag="1">
+        <h3>Rule 1 · one copy, imported twice</h3>
+        <ul>
+          <li class="plain">In Part 1 the server never imported the trainer, and that separation
+            was the point. Here they share one file, deliberately.</li>
+          <li class="plain">The alternative is writing the date parsing and the distance a second
+            time, in the server. The two copies then slowly stop agreeing.</li>
+          <li class="plain">Training would prepare its inputs one way and serving another. That is
+            <b>training/serving skew</b>: no error, no warning, and a model that tested well
+            failing quietly in production.</li>
+          <li class="plain"><b>The price is real.</b> Editing this one file changes both sides at
+            once, and makes every model already in the registry invalid. Slide 22 comes back to
+            what is not written down about that.</li>
+        </ul>
+      </div>
+      <div class="card accent-2 frag" data-frag="2">
+        <h3>Rule 2 · every feature uses one row</h3>
+        <ul>
+          <li class="plain">No "average spend over the last 30 days" — even though the file does
+            hold each card's history, as slide 5 said.</li>
+          <li class="plain">The endpoint receives one transaction and knows nothing about earlier
+            ones. It cannot compute an average it has never seen.</li>
+          <li class="plain">Features built from history need a <b>feature store</b>: a service that
+            keeps those running totals up to date, and gives training and serving the same values.
+            Real fraud systems have one.</li>
+          <li class="plain">This project does not build one, and leaves the boundary visible
+            instead of hiding it behind a feature that quietly uses the future.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="cols wide-left">
+      <div class="callout frag" data-frag="3">Both rules exist for the same reason: <b>what the
+        model sees during training must be exactly what it sees in production.</b> Rule 1 protects
+        that across two containers. Rule 2 protects it across time.</div>
+      <figure class="frag" data-frag="1">
+        <svg viewBox="0 0 360 92" role="img" aria-label="train.py and app.py both import the same features.py">
+          <defs>
+            <marker id="m8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path fill="var(--ink2)" d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+          <rect x="2" y="4" width="140" height="26" rx="6" fill="var(--card)" stroke="var(--line)"/>
+          <text x="72" y="21" text-anchor="middle" fill="var(--ink)" font-size="11" font-family="ui-monospace, monospace">trainer/train.py</text>
+          <rect x="218" y="4" width="140" height="26" rx="6" fill="var(--card)" stroke="var(--line)"/>
+          <text x="288" y="21" text-anchor="middle" fill="var(--ink)" font-size="11" font-family="ui-monospace, monospace">serving/app.py</text>
+          <path d="M72,30 V48 H166" stroke="var(--ink2)" stroke-width="1.5" fill="none" marker-end="url(#m8)"/>
+          <path d="M288,30 V48 H194" stroke="var(--ink2)" stroke-width="1.5" fill="none" marker-end="url(#m8)"/>
+          <rect x="90" y="56" width="180" height="30" rx="6" fill="var(--c1-soft)" stroke="var(--c1)"/>
+          <text x="180" y="75" text-anchor="middle" fill="var(--ink)" font-size="11.5" font-weight="650" font-family="ui-monospace, monospace">common/features.py</text>
+        </svg>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 9 · the decision band ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · C serve · C2 the decision band</span>
+    <h2>Three answers, not two</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-right">
+      <div>
+        <ul>
+          <li class="frag" data-frag="2"><code>threshold_decline</code> is the operating point the
+            trainer chose. <code>threshold_review</code> sits below it.</li>
+          <li class="frag" data-frag="3">Between the two the model is <b>unsure</b>. A transaction
+            there is not approved and not declined. It is set aside for a person.</li>
+          <li class="frag" data-frag="4">That middle band is not a decoration. It is the sampling
+            strategy for the whole of loop ②, and the reason the review queue produces labels worth
+            paying for.</li>
+          <li class="frag" data-frag="5">If a model version carries no threshold, and no override is
+            set, <b>the server refuses to start</b>.</li>
+          <li class="frag" data-frag="6">Defaulting to 0.5 would be easy. At this base rate it would
+            decline a large share of honest customers, and it would do it silently. <b>A service
+            that will not start is a much better failure than a service that starts wrong.</b></li>
+        </ul>
+      </div>
+      <figure class="frag" data-frag="1">
+        <svg viewBox="0 0 400 260" role="img" aria-label="The probability line split into approve, review and decline by two thresholds">
+          <text x="10" y="24" fill="var(--ink2)" font-size="12">P(fraud) for one transaction</text>
+          <rect x="10" y="40" width="220" height="34" rx="4" fill="var(--good)" opacity=".22" stroke="var(--good)" stroke-opacity=".55"/>
+          <rect x="230" y="40" width="70" height="34" rx="4" fill="var(--warning)" opacity=".28" stroke="var(--warning)" stroke-opacity=".55"/>
+          <rect x="300" y="40" width="90" height="34" rx="4" fill="var(--critical)" opacity=".24" stroke="var(--critical)" stroke-opacity=".55"/>
+          <line x1="230" y1="34" x2="230" y2="80" stroke="var(--ink2)" stroke-width="1.4"/>
+          <line x1="300" y1="34" x2="300" y2="80" stroke="var(--ink2)" stroke-width="1.4"/>
+          <text x="10" y="98" fill="var(--ink3)" font-size="11">0.0</text>
+          <text x="390" y="98" text-anchor="end" fill="var(--ink3)" font-size="11">1.0</text>
+          <text x="230" y="98" text-anchor="middle" fill="var(--ink2)" font-size="11">0.31</text>
+          <text x="300" y="98" text-anchor="middle" fill="var(--ink2)" font-size="11">0.62</text>
+          <circle cx="24" cy="130" r="5" fill="var(--good)"/>
+          <text x="38" y="134" fill="var(--ink)" font-size="12.5" font-weight="650">approve</text>
+          <text x="110" y="134" fill="var(--ink2)" font-size="11.5">the model is confident it is fine</text>
+          <circle cx="24" cy="160" r="5" fill="var(--warning)"/>
+          <text x="38" y="164" fill="var(--ink)" font-size="12.5" font-weight="650">review</text>
+          <text x="110" y="164" fill="var(--ink2)" font-size="11.5">a human should look at this one</text>
+          <circle cx="24" cy="190" r="5" fill="var(--critical)"/>
+          <text x="38" y="194" fill="var(--ink)" font-size="12.5" font-weight="650">decline</text>
+          <text x="110" y="194" fill="var(--ink2)" font-size="11.5">confident enough to refuse it</text>
+          <text x="10" y="232" fill="var(--ink3)" font-size="11">the review band is set by REVIEW_SPAN,</text>
+          <text x="10" y="248" fill="var(--ink3)" font-size="11">and its width is your analyst budget</text>
+        </svg>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 10 · the business application ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · D consume · D1 the application</span>
+    <h2>A simulated business application, so that something depends on you</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1"><code>txn-app</code> replays the test file at the endpoint
+            as a live stream, and shows what is happening on a dashboard.</li>
+          <li class="frag" data-frag="2">Nothing about it is realistic except the part that matters.
+            <b>It is a program that cannot continue without an answer.</b></li>
+          <li class="frag" data-frag="3">With <code>curl</code> you are a patient human. An
+            application is not patient, and it has its own users waiting.</li>
+          <li class="frag" data-frag="4">It contains <b>no machine learning at all</b>: no keras, no
+            torch, not even the features file. Its image is about 100 MB.</li>
+          <li class="frag" data-frag="5">That rule is a test you can run. If this application ever
+            needs an ML library, the serving boundary has leaked.</li>
+          <li class="frag" data-frag="7">Because it is simulated, you may break it on purpose,
+            at any moment, with nobody losing money. That is the next slide.</li>
+        </ul>
+      </div>
+      <figure class="frag" data-frag="6">
+        <svg viewBox="0 0 400 250" role="img" aria-label="The app calls the endpoint, and both write to their own table in Postgres">
+          <defs>
+            <marker id="m9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path fill="var(--ink2)" d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+          <rect x="4" y="14" width="150" height="46" rx="8" fill="var(--card)" stroke="var(--line)"/>
+          <text x="79" y="36" text-anchor="middle" fill="var(--ink)" font-size="12.5" font-weight="650">txn-app</text>
+          <text x="79" y="52" text-anchor="middle" fill="var(--ink3)" font-size="10.5">the client · :5500</text>
+          <rect x="246" y="14" width="150" height="46" rx="8" fill="var(--card)" stroke="var(--line)"/>
+          <text x="321" y="36" text-anchor="middle" fill="var(--ink)" font-size="12.5" font-weight="650">fraud-serve</text>
+          <text x="321" y="52" text-anchor="middle" fill="var(--ink3)" font-size="10.5">the server · :8001</text>
+          <path d="M154,28 H240" stroke="var(--c1)" stroke-width="1.8" fill="none" marker-end="url(#m9)"/>
+          <path d="M246,50 H160" stroke="var(--c1)" stroke-width="1.8" fill="none" marker-end="url(#m9)"/>
+          <text x="200" y="22" text-anchor="middle" fill="var(--ink3)" font-size="10">one raw row</text>
+          <text x="200" y="70" text-anchor="middle" fill="var(--ink3)" font-size="10">one decision</text>
+          <path d="M79,60 V120" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m9)"/>
+          <path d="M321,60 V120" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m9)"/>
+          <rect x="4" y="128" width="150" height="52" rx="8" fill="var(--card)" stroke="var(--line)"/>
+          <text x="79" y="150" text-anchor="middle" fill="var(--ink)" font-size="11.5" font-family="ui-monospace, monospace">app_requests</text>
+          <text x="79" y="168" text-anchor="middle" fill="var(--ink2)" font-size="10.5">what the client experienced</text>
+          <rect x="246" y="128" width="150" height="52" rx="8" fill="var(--card)" stroke="var(--line)"/>
+          <text x="321" y="150" text-anchor="middle" fill="var(--ink)" font-size="11.5" font-family="ui-monospace, monospace">scored_transactions</text>
+          <text x="321" y="168" text-anchor="middle" fill="var(--ink2)" font-size="10.5">what the server did</text>
+          <text x="200" y="212" text-anchor="middle" fill="var(--ink2)" font-size="11.5">Two tables, on purpose. The rows that exist</text>
+          <text x="200" y="230" text-anchor="middle" fill="var(--ink2)" font-size="11.5">on the left and not on the right are the interesting ones.</text>
+        </svg>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 11 · break it ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · D consume · D2 breaking it</span>
+    <h2>Now point the application at an address where nothing answers</h2>
+    <p class="sub">No container is touched. The client side of a completely realistic failure,
+      entirely under your control.</p>
+  </header>
+  <div class="body">
+    <div class="cols three">
+      <div class="card accent frag" data-frag="1">
+        <h3>1 · timeout and retries</h3>
+        <ul>
+          <li class="plain">A transaction waits two seconds, and asks at most twice more.</li>
+          <li class="plain">Waiting for ever is not an option. Somebody is standing at a
+            checkout.</li>
+        </ul>
+      </div>
+      <div class="card accent-2 frag" data-frag="2">
+        <h3>2 · fallback</h3>
+        <ul>
+          <li class="plain">Every transaction still needs an answer. An unscored one gets the
+            <b>fallback decision</b>.</li>
+          <li class="plain"><b>approve</b> loses money to fraud. <b>decline</b> turns away good
+            customers. <b>review</b> fills a queue no human can empty.</li>
+        </ul>
+      </div>
+      <div class="card accent-3 frag" data-frag="3">
+        <h3>3 · circuit breaker</h3>
+        <ul>
+          <li class="plain">After five failures in a row the circuit <b>opens</b>: requests are
+            answered from the fallback, with no call made at all.</li>
+          <li class="plain">Every ten seconds one request is allowed through, to test whether the
+            endpoint is back.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="4">The name is borrowed from the switch in your house. It
+      cuts the current so that one fault does not burn the building. <b>There is no free
+      option here</b>, and somebody has to own the choice before the outage, not during it.</div>
+  </div>
+</section>
+
+<!-- ======================= 12 · what the outage costs ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · D consume · D2 the measurement</span>
+    <h2>What a dead endpoint costs, in milliseconds and in euros</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <figure class="frag" data-frag="1">
+        <svg viewBox="0 0 460 250" role="img" aria-label="Measured latency: scored 20 ms, fallback 100 ms, shed about 0 ms">
+          <text x="0" y="14" fill="var(--ink2)" font-size="12.5" font-weight="650">Time spent per transaction</text>
+          <line x1="150" y1="34" x2="150" y2="196" stroke="var(--axis, var(--line))" stroke-width="1"/>
+          <rect x="150" y="44" width="56" height="30" rx="4" fill="var(--c1)"/>
+          <text x="144" y="64" text-anchor="end" fill="var(--ink)" font-size="12">scored</text>
+          <text x="214" y="64" fill="var(--ink2)" font-size="12">20 ms</text>
+          <rect x="150" y="98" width="280" height="30" rx="4" fill="var(--c1)"/>
+          <text x="144" y="118" text-anchor="end" fill="var(--ink)" font-size="12">fallback</text>
+          <text x="422" y="118" text-anchor="end" fill="#fff" font-size="12" font-weight="650">100 ms</text>
+          <rect x="150" y="152" width="3" height="30" rx="1.5" fill="var(--c1)"/>
+          <text x="144" y="172" text-anchor="end" fill="var(--ink)" font-size="12">shed</text>
+          <text x="162" y="172" fill="var(--ink2)" font-size="12">≈ 0 ms — no call is made</text>
+          <text x="0" y="220" fill="var(--ink3)" font-size="11">A failure is five times slower than a success:</text>
+          <text x="0" y="236" fill="var(--ink3)" font-size="11">the timeout and the retries have to run out first.</text>
+        </svg>
+        <figcaption>measured in your own telemetry, in notebook section D2 · consume</figcaption>
+      </figure>
+      <figure class="frag" data-frag="2">
+        <svg viewBox="0 0 460 250" role="img" aria-label="Cumulative cost of a ten minute outage under three fallback policies">
+          <text x="0" y="14" fill="var(--ink2)" font-size="12.5" font-weight="650">Cost of a ten-minute outage</text>
+          <line x1="46" y1="34" x2="46" y2="196" stroke="var(--axis, var(--line))" stroke-width="1"/>
+          <line x1="46" y1="196" x2="330" y2="196" stroke="var(--axis, var(--line))" stroke-width="1"/>
+          <line x1="46" y1="142" x2="330" y2="142" stroke="var(--rule)" stroke-width="1"/>
+          <line x1="46" y1="88" x2="330" y2="88" stroke="var(--rule)" stroke-width="1"/>
+          <line x1="46" y1="34" x2="330" y2="34" stroke="var(--rule)" stroke-width="1"/>
+          <text x="40" y="146" text-anchor="end" fill="var(--ink3)" font-size="10">€6k</text>
+          <text x="40" y="92" text-anchor="end" fill="var(--ink3)" font-size="10">€12k</text>
+          <text x="40" y="38" text-anchor="end" fill="var(--ink3)" font-size="10">€18k</text>
+          <text x="46" y="212" fill="var(--ink3)" font-size="10">0</text>
+          <text x="188" y="212" text-anchor="middle" fill="var(--ink3)" font-size="10">5 min</text>
+          <text x="330" y="212" text-anchor="middle" fill="var(--ink3)" font-size="10">10 min</text>
+          <path d="M46,196 L330,35" stroke="var(--c2)" stroke-width="2" fill="none"/>
+          <path d="M46,196 L330,88" stroke="var(--c1)" stroke-width="2" fill="none"/>
+          <path d="M46,196 L330,153" stroke="var(--c3)" stroke-width="2" fill="none"/>
+          <text x="338" y="38" fill="var(--ink)" font-size="11">decline all</text>
+          <text x="338" y="52" fill="var(--ink3)" font-size="10.5">€17.9k</text>
+          <text x="338" y="91" fill="var(--ink)" font-size="11">approve all</text>
+          <text x="338" y="105" fill="var(--ink3)" font-size="10.5">€12.0k</text>
+          <text x="338" y="156" fill="var(--ink)" font-size="11">review all</text>
+          <text x="338" y="170" fill="var(--ink3)" font-size="10.5">€4.8k — and</text>
+          <text x="338" y="184" fill="var(--ink3)" font-size="10.5">5,980 waiting</text>
+        </svg>
+        <figcaption>assumed: 600 transactions a minute · 0.4% fraud · €500 lost per fraud approved
+          · €3 lost per honest customer declined · €0.80 per review</figcaption>
+      </figure>
+    </div>
+    <div class="callout frag" data-frag="3">The cheapest line is a trap: analysts clear about two
+      transactions a minute, so "review all" buys ten minutes of calm with fifty hours of backlog.
+      <b>A dead dependency does not only fail your requests — it holds your program while failing
+      them</b>, and the outage then spreads into services that were healthy.</div>
+  </div>
+</section>
+
+<!-- ======================= 13 · the map, loop 2 ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · the map, 2 of 3</span>
+  </header>
+  <div class="body">
+    <div class="diagram" style="max-height:74%"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 552" class="arch" role="img" aria-label="Loop ② — where the missing answers come from">
+      <defs>
+          <marker id="m2-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path class="a-mk" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m2-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c1)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m2-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c2)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m2-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c3)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+        </defs>
+        <rect class="a-surface" x="0" y="0" width="1180" height="660"/>
+        <text class="a-h1" x="30" y="36">Loop ② — where the missing answers come from</text>
+        <text class="a-h2" x="30" y="58">Loop ① runs on, greyed out above. One new stage turns the uncertain decisions it produces into ground truth.</text>
+        <!-- ================= row 1: A B C D ================= -->
+        <g class="a-dim">
+          <rect class="a-card" x="30" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="46" y="116">A · DATA</text>
+          <line class="a-rule" x1="46" y1="128" x2="224" y2="128"/>
+          <text class="a-item" x="46" y="150"><tspan class="a-code">A1</tspan>  fetch the Sparkov CSVs</text>
+          <text class="a-item" x="46" y="170"><tspan class="a-code">A2</tspan>  look before modelling</text>
+          <text class="a-item" x="46" y="190"><tspan class="a-code">A3</tspan>  features.py, shared</text>
+        </g>
+        <g class="a-dim">
+          <rect class="a-card" x="320" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="336" y="116">B · TRAIN</text>
+          <line class="a-rule" x1="336" y1="128" x2="514" y2="128"/>
+          <text class="a-item" x="336" y="150"><tspan class="a-code">B1</tspan>  fraud-trainer, one run</text>
+          <text class="a-item" x="336" y="170"><tspan class="a-code">B2</tspan>  threshold from val</text>
+          <text class="a-item" x="336" y="190"><tspan class="a-code">B3</tspan>  registry → @champion</text>
+        </g>
+        <g class="a-dim">
+          <rect class="a-card" x="610" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="626" y="116">C · SERVE</text>
+          <line class="a-rule" x1="626" y1="128" x2="804" y2="128"/>
+          <text class="a-item" x="626" y="150"><tspan class="a-code">C1</tspan>  fraud-serve :8001</text>
+          <text class="a-item" x="626" y="170"><tspan class="a-code">C2</tspan>  approve · review ·</text>
+          <text class="a-item" x="626" y="190">      decline</text>
+        </g>
+        <g class="a-dim">
+          <rect class="a-card" x="910" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="926" y="116">D · CONSUME</text>
+          <line class="a-rule" x1="926" y1="128" x2="1104" y2="128"/>
+          <text class="a-item" x="926" y="150"><tspan class="a-code">D1</tspan>  txn-app :5500</text>
+          <text class="a-item" x="926" y="170"><tspan class="a-code">D2</tspan>  timeout · fallback ·</text>
+          <text class="a-item" x="926" y="190">      circuit breaker</text>
+        </g>
+        <!-- ================= the store ================= -->
+        <g>
+          <rect class="a-card" x="610" y="296" width="510" height="76" rx="10"/>
+          <text class="a-title" x="626" y="324">POSTGRES — THE SPINE</text>
+          <text class="a-item" x="626" y="348">scored_transactions · app_requests · review_tasks · verdicts</text>
+        </g>
+        <!-- ================= row 3: F and E ================= -->
+        <g class="frag" data-frag="1">
+          <rect class="a-card" x="910" y="436" width="210" height="100" rx="10"/>
+          <text class="a-title" x="926" y="464">E · REVIEW</text>
+          <line class="a-rule" x1="926" y1="476" x2="1104" y2="476"/>
+          <text class="a-item" x="926" y="498"><tspan class="a-code">E1</tspan>  Label Studio :8080</text>
+          <text class="a-item" x="926" y="518"><tspan class="a-code">E2</tspan>  label-sync, both ways</text>
+        </g>
+        <!-- ================= flows ================= -->
+        <!-- A -> B -> C -->
+        <g class="a-dim">
+          <path class="a-flow" marker-end="url(#m2-a)" d="M240,147 H314"/>
+          <text class="a-note" x="277" y="139" text-anchor="middle">1.3M rows</text>
+        </g>
+        <g class="a-dim">
+          <path class="a-flow" marker-end="url(#m2-a)" d="M530,147 H604"/>
+          <text class="a-note" x="567" y="139" text-anchor="middle">@champion</text>
+        </g>
+        <!-- loop 1: C <-> D -->
+        <g class="a-dim">
+          <path class="a-flow a-l1" marker-end="url(#m2-a1)" d="M820,130 H904"/>
+          <text class="a-note" x="862" y="122" text-anchor="middle">decision</text>
+          <path class="a-flow a-l1" marker-end="url(#m2-a1)" d="M910,168 H826"/>
+          <text class="a-note" x="862" y="186" text-anchor="middle">transaction</text>
+          <text class="a-t1" x="862" y="232" text-anchor="middle">① decision loop</text>
+          <text class="a-note" x="862" y="248" text-anchor="middle">seconds</text>
+        </g>
+        <!-- C, D -> postgres -->
+        <g class="a-dim">
+          <path class="a-flow" marker-end="url(#m2-a)" d="M715,206 V290"/>
+          <text class="a-note" x="725" y="252">what the server did</text>
+          <path class="a-flow" marker-end="url(#m2-a)" d="M1015,206 V290"/>
+          <text class="a-note" x="1025" y="252">what the client saw</text>
+        </g>
+        <!-- loop 2: postgres <-> label studio -->
+        <g class="frag" data-frag="2">
+          <path class="a-flow a-l2" marker-end="url(#m2-a2)" d="M980,372 V430"/>
+          <text class="a-note" x="972" y="408" text-anchor="end">review band</text>
+          <path class="a-flow a-l2" marker-end="url(#m2-a2)" d="M1050,436 V378"/>
+          <text class="a-note" x="1058" y="408">verdicts</text>
+          <text class="a-t2" x="890" y="492" text-anchor="end">② label loop</text>
+          <text class="a-note" x="890" y="508" text-anchor="end">minutes — a human decides</text>
+        </g>
+        <!-- loop 3: postgres -> snapshot -> train -->
+        <!-- ================= G band ================= -->
+      </svg></div>
+    <div class="callout frag" data-frag="3">Loop ① never stops while loop ② is running. The
+      uncertain transactions go to a person, and the answers come back minutes or days later.
+      <b>That difference in speed is why they are two loops and not one.</b></div>
+  </div>
+</section>
+
+<!-- ======================= 14 · without a human ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · E review · why it exists</span>
+    <h2>What you cannot know without a human in the loop</h2>
+    <p class="sub">In the file, the answer was in the column next to the transaction. In
+      production, nobody writes it down at all.</p>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent-2 frag" data-frag="1">
+        <h3>Without verdicts, this is your situation</h3>
+        <ul>
+          <li class="plain">The model says 0.91, the transaction is declined, and the world says
+            nothing back. Ever.</li>
+          <li class="plain">You cannot measure precision or recall on live traffic. You only know
+            what the model said, and how fast it said it.</li>
+          <li class="plain"><b>Drift becomes invisible.</b> The fraud rate moved across the two
+            years in your file. Live, nothing would show you that it moved again.</li>
+          <li class="plain">Retraining has nothing new to learn from. You would train again on the
+            same old labels, and call the result an improvement.</li>
+          <li class="plain">The model's own confidence is not evidence. A wrong model is often a
+            confident one.</li>
+        </ul>
+      </div>
+      <div class="card accent-3 frag" data-frag="2">
+        <h3>A verdict is the missing measurement</h3>
+        <ul>
+          <li class="plain">One analyst decision turns one live transaction into a labelled
+            example.</li>
+          <li class="plain">With enough of them you can finally count today's mistakes, and not
+            only the mistakes on a test set from two years ago.</li>
+          <li class="plain">Those same labels are the training data for the next model. Loop ②
+            feeds loop ③.</li>
+          <li class="plain">And the analyst sees cases the model found hard, which is exactly where
+            a new pattern of fraud appears first.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="3">This is the honest end of Part 1. The log file records
+      what the model answered. <b>Nothing in Part 1 records whether it was right.</b></div>
+  </div>
+</section>
+
+<!-- ======================= 15 · labels are bought ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · E review · E1 choosing what to send</span>
+    <h2>Labels are not data you have. They are data you buy.</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1">Every label costs an analyst's minutes. The budget is
+            small, so the real question is <b>which transactions you send them</b>.</li>
+          <li class="frag" data-frag="2">The first plan for this project was "sample 1% at random".
+            At a 0.4% fraud rate, a random sample is almost entirely obvious legitimate traffic.
+            You pay for a hundred labels and learn from one.</li>
+          <li class="frag" data-frag="4">The review band sends the cases where the model is
+            <b>unsure</b>. A human verdict there carries information the model does not already
+            have. This is called <b>uncertainty sampling</b>.</li>
+          <li class="frag" data-frag="5">The queue is sorted by probability, highest first. A
+            half-finished queue is therefore always the half most worth finishing.</li>
+          <li class="frag" data-frag="6">The width of the band is a budget decision. Wider band,
+            more labels, more analyst hours.</li>
+        </ul>
+      </div>
+      <figure class="frag" data-frag="3">
+        <svg viewBox="0 0 380 250" role="img" aria-label="A random sample is 99.6% legitimate traffic; the review band is about a quarter fraud">
+          <text x="0" y="16" fill="var(--ink2)" font-size="12">100 transactions sent to an analyst</text>
+          <text x="0" y="52" fill="var(--ink)" font-size="12" font-weight="650">random 1%</text>
+          <rect x="0" y="62" width="378" height="32" rx="4" fill="var(--line)"/>
+          <rect x="374" y="62" width="4" height="32" rx="2" fill="var(--c2)"/>
+          <text x="378" y="52" text-anchor="end" fill="var(--c2)" font-size="10.5" font-weight="650">0.4 fraud ↓</text>
+          <text x="8" y="83" fill="var(--ink2)" font-size="11.5">99–100 obvious, already known</text>
+          <text x="0" y="112" fill="var(--ink3)" font-size="11">↳ you buy 100 labels and learn from 0.4 of them</text>
+          <text x="0" y="152" fill="var(--ink)" font-size="12" font-weight="650">the review band</text>
+          <rect x="0" y="162" width="276" height="32" rx="4" fill="var(--line)"/>
+          <rect x="278" y="162" width="100" height="32" rx="4" fill="var(--c2)"/>
+          <text x="8" y="183" fill="var(--ink2)" font-size="11.5">hard, but legitimate</text>
+          <text x="370" y="183" text-anchor="end" fill="#fff" font-size="11.5" font-weight="650">fraud</text>
+          <text x="0" y="212" fill="var(--ink3)" font-size="11">↳ every case is one the model could not settle</text>
+          <text x="0" y="236" fill="var(--ink3)" font-size="10.5">proportions are illustrative; the exact mix depends on the band</text>
+        </svg>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 16 · build it yourself ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · E review · E1 the tool</span>
+    <h2>Before you install anything: build the review tool yourself</h2>
+    <p class="sub">You need a screen where an analyst decides "fraud" or "legitimate". How hard can
+      it be? Write the list.</p>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card frag" data-frag="1">
+        <h3>What that screen actually needs</h3>
+        <ul>
+          <li class="plain">A login, and one account for each analyst.</li>
+          <li class="plain">A queue that never hands the same transaction to two people.</li>
+          <li class="plain">Buttons a person can press two hundred times an hour without hating
+            you, and keyboard shortcuts, because the mouse is the slow part.</li>
+          <li class="plain">A record of who said what, and when: an <b>audit trail</b>.</li>
+          <li class="plain">The same case given to two analysts sometimes, to measure whether they
+            agree with each other.</li>
+          <li class="plain">An API, so your pipeline can add tasks and read verdicts back.</li>
+          <li class="plain">A <b>webhook</b>: a message the tool sends to your service the moment
+            something happens.</li>
+        </ul>
+      </div>
+      <div class="frag" data-frag="2">
+        <div class="callout" style="margin-bottom:.8em"><b>That is a product.</b> It is months of
+          work, it is nobody's idea of machine learning, and it is not the product your employer is
+          paying you to build.</div>
+        <div class="card accent-3">
+          <h3>So you install one</h3>
+          <ul>
+            <li class="plain"><b>Label Studio CE</b> is that product: open source, Apache-2.0,
+              storing its data in the same Postgres, running on your laptop with no account
+              anywhere.</li>
+            <li class="plain">You spend an afternoon on a configuration file instead of a quarter
+              on a user interface.</li>
+            <li class="plain">The original plan for this project named a different tool and
+              described it as self-hosted. It is not: it is sold as a service only. <b>Read the
+              licence before you design around a tool.</b></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 17 · label-sync ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · E review · E2 the wiring</span>
+    <h2>The queue is not the system. The wiring is.</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1"><code>label-sync</code> is a small service with one job:
+            move rows between Postgres and Label Studio. It has no ML dependency, exactly like the
+            application.</li>
+          <li class="frag" data-frag="2"><b>Outward</b>, every 30 seconds: sweep the review band and
+            push whatever is not queued yet, highest probability first.</li>
+          <li class="frag" data-frag="3"><b>Back</b>, by two paths on purpose. The <b>webhook</b> is
+            the fast path, sent the moment an analyst saves a verdict.</li>
+          <li class="frag" data-frag="4"><code>POST /pull</code> re-reads every annotation from the
+            API. <b>This is the path that matters.</b> A webhook is sent once and never checked, so
+            a delivery lost while the service restarted is invisible.</li>
+          <li class="frag" data-frag="5">The annotation still exists, the analyst was still paid,
+            and nothing would ever notice it was missing. <b>A label that was bought and thrown
+            away is the worst outcome in this system.</b></li>
+          <li class="frag" data-frag="6">Both paths <b>upsert</b>: insert the row, or update it if it
+            is already there. So replaying costs nothing, a corrected verdict overwrites cleanly,
+            and nothing can be counted twice.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="callout frag" data-frag="7"><b>And one thing the task must never show: the
+          model's score.</b> The analyst sees the amount, the merchant, the category, the distance
+          and the cardholder. Nothing else.</div>
+        <p class="small frag" data-frag="8" style="margin-top:.8em">An analyst who reads "0.97 —
+          DECLINE" agrees with the model. A queue that only confirms produces labels with no
+          information in them, and those labels then teach the next model to make the same mistakes
+          with more confidence. <b>The score decides what gets reviewed. It must not decide the
+          answer.</b></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 18 · HITL is not free ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · E review · what it costs</span>
+    <h2>Adding a human is adding a second system</h2>
+    <p class="sub">The review loop removes a blind spot. It also creates an operation that somebody
+      has to run, for ever. Both are true.</p>
+  </header>
+  <div class="body">
+    <div class="cols three">
+      <div class="card accent frag" data-frag="1">
+        <h3>Money and time</h3>
+        <ul>
+          <li class="plain">Every label has a price, and the budget decides the width of the band —
+            not the other way round.</li>
+          <li class="plain">A verdict arrives hours or days after the decision. Your ground truth
+            is always about the past.</li>
+        </ul>
+      </div>
+      <div class="card accent-2 frag" data-frag="2">
+        <h3>People</h3>
+        <ul>
+          <li class="plain">Two analysts label the same case differently. You need a rule for that,
+            and a number for how often it happens.</li>
+          <li class="plain">A queue that is too full gets ignored. An empty one wastes a paid
+            person. Somebody owns the queue.</li>
+        </ul>
+      </div>
+      <div class="card accent-3 frag" data-frag="3">
+        <h3>New failure modes</h3>
+        <ul>
+          <li class="plain">The band decides what humans ever see, so the next model learns from
+            that slice and not from the world.</li>
+          <li class="plain">If the queue stops, nothing breaks visibly today. Your labels simply
+            stop arriving, and you find out much later.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="4">Budget for the second system before you promise the
+      first. <b>"We will add human review later" is a plan for a team, not a line in a
+      sprint.</b></div>
+  </div>
+</section>
+
+<!-- ======================= 19 · the map, loop 3 ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · the map, 3 of 3</span>
+  </header>
+  <div class="body">
+    <div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 660" class="arch" role="img" aria-label="Loop ③ — the one that pays for the other two">
+      <defs>
+          <marker id="m3-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path class="a-mk" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m3-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c1)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m3-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c2)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="m3-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path fill="var(--c3)" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+        </defs>
+        <rect class="a-surface" x="0" y="0" width="1180" height="660"/>
+        <text class="a-h1" x="30" y="36">Loop ③ — the one that pays for the other two</text>
+        <text class="a-h2" x="30" y="58">Verdicts become a dataset with a name, a dataset becomes a run, a run becomes the champion — under a stream that never stopped.</text>
+        <!-- ================= row 1: A B C D ================= -->
+        <g class="a-dim">
+          <rect class="a-card" x="30" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="46" y="116">A · DATA</text>
+          <line class="a-rule" x1="46" y1="128" x2="224" y2="128"/>
+          <text class="a-item" x="46" y="150"><tspan class="a-code">A1</tspan>  fetch the Sparkov CSVs</text>
+          <text class="a-item" x="46" y="170"><tspan class="a-code">A2</tspan>  look before modelling</text>
+          <text class="a-item" x="46" y="190"><tspan class="a-code">A3</tspan>  features.py, shared</text>
+        </g>
+        <g class="a-dim">
+          <rect class="a-card" x="320" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="336" y="116">B · TRAIN</text>
+          <line class="a-rule" x1="336" y1="128" x2="514" y2="128"/>
+          <text class="a-item" x="336" y="150"><tspan class="a-code">B1</tspan>  fraud-trainer, one run</text>
+          <text class="a-item" x="336" y="170"><tspan class="a-code">B2</tspan>  threshold from val</text>
+          <text class="a-item" x="336" y="190"><tspan class="a-code">B3</tspan>  registry → @champion</text>
+        </g>
+        <g class="a-dim">
+          <rect class="a-card" x="610" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="626" y="116">C · SERVE</text>
+          <line class="a-rule" x1="626" y1="128" x2="804" y2="128"/>
+          <text class="a-item" x="626" y="150"><tspan class="a-code">C1</tspan>  fraud-serve :8001</text>
+          <text class="a-item" x="626" y="170"><tspan class="a-code">C2</tspan>  approve · review ·</text>
+          <text class="a-item" x="626" y="190">      decline</text>
+        </g>
+        <g class="a-dim">
+          <rect class="a-card" x="910" y="88" width="210" height="118" rx="10"/>
+          <text class="a-title" x="926" y="116">D · CONSUME</text>
+          <line class="a-rule" x1="926" y1="128" x2="1104" y2="128"/>
+          <text class="a-item" x="926" y="150"><tspan class="a-code">D1</tspan>  txn-app :5500</text>
+          <text class="a-item" x="926" y="170"><tspan class="a-code">D2</tspan>  timeout · fallback ·</text>
+          <text class="a-item" x="926" y="190">      circuit breaker</text>
+        </g>
+        <!-- ================= the store ================= -->
+        <g>
+          <rect class="a-card" x="610" y="296" width="510" height="76" rx="10"/>
+          <text class="a-title" x="626" y="324">POSTGRES — THE SPINE</text>
+          <text class="a-item" x="626" y="348">scored_transactions · app_requests · review_tasks · verdicts</text>
+        </g>
+        <!-- ================= row 3: F and E ================= -->
+        <g class="frag" data-frag="1">
+          <rect class="a-card" x="320" y="436" width="210" height="100" rx="10"/>
+          <text class="a-title" x="336" y="464">F · VERSION</text>
+          <line class="a-rule" x1="336" y1="476" x2="514" y2="476"/>
+          <text class="a-item" x="336" y="498"><tspan class="a-code">F1</tspan>  build the snapshot</text>
+          <text class="a-item" x="336" y="518"><tspan class="a-code">F2</tspan>  dvc hash on the run</text>
+        </g>
+        <g class="a-dim">
+          <rect class="a-card" x="910" y="436" width="210" height="100" rx="10"/>
+          <text class="a-title" x="926" y="464">E · REVIEW</text>
+          <line class="a-rule" x1="926" y1="476" x2="1104" y2="476"/>
+          <text class="a-item" x="926" y="498"><tspan class="a-code">E1</tspan>  Label Studio :8080</text>
+          <text class="a-item" x="926" y="518"><tspan class="a-code">E2</tspan>  label-sync, both ways</text>
+        </g>
+        <!-- ================= flows ================= -->
+        <!-- A -> B -> C -->
+        <g class="a-dim">
+          <path class="a-flow" marker-end="url(#m3-a)" d="M240,147 H314"/>
+          <text class="a-note" x="277" y="139" text-anchor="middle">1.3M rows</text>
+        </g>
+        <g class="a-dim">
+          <path class="a-flow" marker-end="url(#m3-a)" d="M530,147 H604"/>
+          <text class="a-note" x="567" y="139" text-anchor="middle">@champion</text>
+        </g>
+        <!-- loop 1: C <-> D -->
+        <g class="a-dim">
+          <path class="a-flow a-l1" marker-end="url(#m3-a1)" d="M820,130 H904"/>
+          <text class="a-note" x="862" y="122" text-anchor="middle">decision</text>
+          <path class="a-flow a-l1" marker-end="url(#m3-a1)" d="M910,168 H826"/>
+          <text class="a-note" x="862" y="186" text-anchor="middle">transaction</text>
+          <text class="a-t1" x="862" y="232" text-anchor="middle">① decision loop</text>
+          <text class="a-note" x="862" y="248" text-anchor="middle">seconds</text>
+        </g>
+        <!-- C, D -> postgres -->
+        <g class="a-dim">
+          <path class="a-flow" marker-end="url(#m3-a)" d="M715,206 V290"/>
+          <text class="a-note" x="725" y="252">what the server did</text>
+          <path class="a-flow" marker-end="url(#m3-a)" d="M1015,206 V290"/>
+          <text class="a-note" x="1025" y="252">what the client saw</text>
+        </g>
+        <!-- loop 2: postgres <-> label studio -->
+        <g class="a-dim">
+          <path class="a-flow a-l2" marker-end="url(#m3-a2)" d="M980,372 V430"/>
+          <text class="a-note" x="972" y="408" text-anchor="end">review band</text>
+          <path class="a-flow a-l2" marker-end="url(#m3-a2)" d="M1050,436 V378"/>
+          <text class="a-note" x="1058" y="408">verdicts</text>
+          <text class="a-t2" x="890" y="492" text-anchor="end">② label loop</text>
+          <text class="a-note" x="890" y="508" text-anchor="end">minutes — a human decides</text>
+        </g>
+        <!-- loop 3: postgres -> snapshot -> train -->
+        <g class="frag" data-frag="2">
+          <path class="a-flow a-l3" marker-end="url(#m3-a3)" d="M700,372 V486 H536"/>
+          <text class="a-note" x="598" y="478" text-anchor="middle">verdicts + original rows</text>
+          <path class="a-flow a-l3" marker-end="url(#m3-a3)" d="M370,436 V212"/>
+          <text class="a-note" x="360" y="330" text-anchor="end">new training set</text>
+          <text class="a-t3" x="40" y="326">③ improvement loop</text>
+          <text class="a-note" x="40" y="342">days — the model that ships next</text>
+          <text class="a-note" x="40" y="358">is made of what this one got wrong</text>
+        </g>
+        <!-- ================= G band ================= -->
+        <g class="frag" data-frag="3">
+          <rect class="a-band" x="30" y="576" width="1090" height="56" rx="10"/>
+          <text class="a-title" x="46" y="600">G · ORCHESTRATE — Airflow :8090</text>
+          <text class="a-item" x="46" y="620"><tspan class="a-code">G1</tspan> fraud_retrain drives ③ on demand   ·   <tspan class="a-code">G2</tspan> sync_labels drives ② every 15 min   ·   every task wraps a command you already ran by hand</text>
+        </g>
+      </svg></div>
+  </div>
+</section>
+
+<!-- ======================= 20 · hashes and parquet ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · F version · F1 two concepts</span>
+    <h2>Two concepts</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent frag" data-frag="1">
+        <h3>A hash</h3>
+        <ul>
+          <li class="plain">A function that reads bytes and returns a short string. The same bytes
+            always give the same string.</li>
+          <li class="plain">Change one byte anywhere and the string is completely different. There
+            is no "almost the same".</li>
+          <li class="plain">It is a fingerprint, not a summary. You cannot rebuild the file from
+            it.</li>
+          <li class="plain">So two files with the same hash are, for our purposes, the same file —
+            whatever they are called and wherever they are.</li>
+        </ul>
+      </div>
+      <div class="card accent-2 frag" data-frag="2">
+        <h3>Parquet</h3>
+        <ul>
+          <li class="plain">A file format for tables. CSV is text: every number is written as
+            characters, and every reader has to guess the types.</li>
+          <li class="plain">Parquet keeps each column together, in binary, compressed, with the
+            type recorded in the file.</li>
+          <li class="plain">Smaller and much faster to read. Here: 84 MB, against about 500 MB of
+            CSV.</li>
+          <li class="plain">A person cannot read it in a text editor, which is fine. A program
+            reads it.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="3">Hashing only works if the file is written the same way
+      every time. The rows are sorted, the row numbers are not written, and no timestamp goes in.
+      <b>An unstable sort would change the fingerprint without changing the data</b>, and the
+      versioning would then mean nothing.</div>
+  </div>
+</section>
+
+<!-- ======================= 21 · a dataset with an identity ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · F version · F1 and F2 the snapshot</span>
+    <h2>A dataset that can be named</h2>
+    <p class="sub">Code has git. Models have the registry. Data usually has "the file on the shared
+      drive that someone regenerated in March".</p>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div>
+        <ul>
+          <li class="frag" data-frag="2"><b>DVC</b> puts a small text file in git — 106 bytes — that
+            names an 84 MB file by its fingerprint. The big file itself stays out of git.</li>
+          <li class="frag" data-frag="3">The trainer reads that pointer and stamps the fingerprint
+            onto the run. <b>Any registered model can be traced back to the exact bytes it learned
+            from</b>, and not to a filename that means something different next month.</li>
+          <li class="frag" data-frag="4">If the snapshot is missing, the trainer falls back to the
+            raw CSV and tags the run <code>dataset=raw-csv</code>. The <b>provenance</b> — the
+            record of where the data came from — is never absent. It just tells a different
+            story.</li>
+          <li class="frag" data-frag="5">The snapshot keeps the reviewed transactions out of the
+            test set. They come from the test period, so training on them and then scoring on the
+            whole file would be leakage all over again.</li>
+          <li class="frag" data-frag="6">The pipeline only <b>verifies</b> this fingerprint. It
+            never rebuilds it, because a pipeline that rewrites a pointer nobody read would version
+            data by accident.</li>
+        </ul>
+      </div>
+      <div>
+        <pre class="frag" data-frag="1"><span class="cm"># data/derived/fraud_training.parquet.dvc</span>
+<span class="cm"># 106 bytes, committed to git</span>
+outs:
+- md5: <span class="hl">3f2a7c19…c81</span>
+  size: 88014592
+  path: fraud_training.parquet</pre>
+        <p class="small frag" data-frag="7" style="margin-top:.7em">Git tracks the pointer. The
+          parquet file lives beside it, ignored by git, rebuilt by a script. One line in a commit
+          now answers "which data was that?" for ever.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 22 · the code has no fingerprint ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · F version · what is still missing</span>
+    <h2>The registry does not hold the code that builds the features</h2>
+    <p class="sub">The snapshot gave the data an identity. The code that turns a transaction into
+      numbers has none.</p>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div>
+        <ul>
+          <li class="frag" data-frag="2"><b>A registered version holds the network</b> — its shape
+            and its weights. It does not hold <code>features.py</code>. The endpoint gets that file
+            from its own image instead.</li>
+          <li class="frag" data-frag="3"><b>Both parts are needed, and only one is stored.</b> For any
+            version you can now prove which bytes it learned from. You cannot say which version
+            of the feature code built its inputs.</li>
+          <li class="frag" data-frag="4"><b>What is missing is the link.</b> MLflow writes the
+            commit onto a run by itself — but only when training runs inside a checkout of the
+            repository. Ours runs in a container holding two files and no history.</li>
+        </ul>
+      </div>
+      <div>
+        <pre class="frag" data-frag="1"><span class="cm"># tags on a fraud run, as the project stands</span>
+dataset        derived-parquet
+dvc_md5        <span class="hl">3f2a7c19…c81</span>  <span class="cm">← the data is named</span>
+keras_version  3.5.0
+backend        torch
+<span class="cm">…and nothing here names the code</span></pre>
+        <p class="small frag" data-frag="5" style="margin:.8em 0 .45em"><b>Three ways to close
+          it, weakest first.</b></p>
+        <div class="stack">
+          <div class="layer frag" data-frag="5"><b>Tag the run with the commit.</b>
+            <span>Cheap, and what MLflow would have done by itself. An image built from an edited
+            file still reports a clean commit.</span></div>
+          <div class="layer frag" data-frag="6"><b>Tag a fingerprint of the file.</b>
+            <span>The same trick as the data, one line beside <code>dvc_md5</code>. An edit cannot
+            hide from it.</span></div>
+          <div class="layer top frag" data-frag="7"><b>Copy the file into the model version.</b>
+            <span>Hand it to <code>log_model</code>, and the code travels with the model.</span></div>
+        </div>
+        <p class="small frag" data-frag="7" style="margin-top:.7em">The project stops here. The
+          fingerprint on the data and the missing one on the code are the same idea, and an
+          auditor asks about both.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 23 · airflow and DAGs ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · G orchestrate · what Airflow is</span>
+    <h2>An orchestrator is a shift manager with a notebook</h2>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div>
+        <ul>
+          <li class="frag" data-frag="1"><b>A DAG — a directed acyclic graph — is a list of tasks
+            plus the order they must run in.</b> <b>Directed</b>: every arrow points one way.
+            <b>Acyclic</b>: the arrows never close into a circle, so no task can ever wait for
+            itself.</li>
+          <li class="frag" data-frag="2">Think of a recipe. Boiling the water and chopping the
+            vegetables can happen at the same time. Serving cannot happen before either of them.
+            That shape is a DAG.</li>
+          <li class="frag" data-frag="3"><b>Airflow is the shift manager.</b> It starts each task
+            when the tasks before it have finished, keeps every log, retries what failed, and shows
+            you which step is red.</li>
+          <li class="frag" data-frag="4">A DAG runs on a clock, or only when a person presses the
+            button. Both are normal.</li>
+          <li class="frag" data-frag="5"><b>It does not do the work.</b> The training task starts
+            the very same trainer container you started by hand. An Airflow image carrying keras
+            would be a second place for the training environment to drift.</li>
+        </ul>
+      </div>
+      <figure class="frag" data-frag="2">
+        <svg viewBox="0 0 360 250" role="img" aria-label="A recipe drawn as a DAG: two tasks in parallel, then one that waits for both">
+          <defs>
+            <marker id="m21" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path fill="var(--ink2)" d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+          <rect x="6" y="20" width="150" height="40" rx="8" fill="var(--card)" stroke="var(--line)"/>
+          <text x="81" y="45" text-anchor="middle" fill="var(--ink)" font-size="12">boil the water</text>
+          <rect x="6" y="80" width="150" height="40" rx="8" fill="var(--card)" stroke="var(--line)"/>
+          <text x="81" y="105" text-anchor="middle" fill="var(--ink)" font-size="12">chop the vegetables</text>
+          <path d="M156,40 H196 V62" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m21)"/>
+          <path d="M156,100 H196 V78" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m21)"/>
+          <rect x="196" y="50" width="150" height="40" rx="8" fill="var(--c1-soft)" stroke="var(--c1)"/>
+          <text x="271" y="75" text-anchor="middle" fill="var(--ink)" font-size="12">cook, then serve</text>
+          <text x="6" y="160" fill="var(--ink2)" font-size="11.5">Two tasks with no arrow between them</text>
+          <text x="6" y="178" fill="var(--ink2)" font-size="11.5">may run at the same time.</text>
+          <text x="6" y="204" fill="var(--ink2)" font-size="11.5">The third one waits for both, and the</text>
+          <text x="6" y="222" fill="var(--ink2)" font-size="11.5">manager decides when that moment is.</text>
+        </svg>
+      </figure>
+    </div>
+    <div class="callout frag" data-frag="7">Airflow arrives last in this course and automates
+      nothing new. <b>Build the orchestrator first and you debug a scheduler instead of a
+      pipeline</b>, and you finish with steps nobody ever proved by hand.</div>
+  </div>
+</section>
+
+<!-- ======================= 24 · the two DAGs ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · G orchestrate · G1 and G2, the two DAGs</span>
+    <h2>Two DAGs, two schedules, and a promotion that may refuse</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent-2 frag" data-frag="1">
+        <h3>sync_labels · every 15 minutes</h3>
+        <p class="where">push → pull → report</p>
+        <ul>
+          <li class="plain">On a clock, because labels arrive continuously.</li>
+          <li class="plain">It exists mostly for the <code>pull</code>: it recovers the verdicts a
+            lost webhook dropped.</li>
+          <li class="plain">"We should re-read those sometimes" becomes something the system
+            does, not something you remember.</li>
+        </ul>
+      </div>
+      <div class="card accent-3 frag" data-frag="2">
+        <h3>fraud_retrain · when you press the button</h3>
+        <p class="where">check_snapshot → train → promote → reload_serving</p>
+        <ul>
+          <li class="plain">No schedule at all. A fraud model does not retrain on a calendar; it
+            retrains when the data has moved.</li>
+          <li class="plain">Deciding that it has moved is still a human's job.</li>
+          <li class="plain">Each task wraps a cell you have already run by hand.
+            <code>check_snapshot</code> only <b>verifies</b> the parquet fingerprint against the
+            pointer in git; it never rebuilds it.</li>
+        </ul>
+      </div>
+    </div>
+    <ul>
+      <li class="frag" data-frag="3"><code>promote</code> compares before it moves anything: the run
+        must have used this snapshot, its files must really be on disk, and it must beat the
+        champion's PR-AUC. Otherwise the task skips and the alias stays where it is. <b>A
+        retraining pipeline that always promotes is not a pipeline, it is a liability.</b></li>
+      <li class="frag" data-frag="4"><code>reload_serving</code> is where the loop closes. Promotion
+        alone changes nothing, because the server resolved the alias when it started.</li>
+    </ul>
+    <div class="callout frag" data-frag="5">On the dashboard you then see two model versions inside
+      the same minute. That is the exact request where the model changed, <b>under a stream of
+      transactions that never stopped</b>.</div>
+  </div>
+</section>
+
+<!-- ======================= 25 · the adoption ladder ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · what to take to work</span>
+    <h2>You do not need all of this to get value from any of it</h2>
+    <p class="sub">Read from the bottom. Every rung is useful on its own, and each one is worth
+      adding only once the rung below it hurts.</p>
+  </header>
+  <div class="body">
+    <div class="cols wide-left">
+      <div class="stack">
+        <div class="layer top frag" data-frag="7"><b>7 · an orchestrator</b> <span>— last. Automate
+          the steps you have already run by hand and proved.</span></div>
+        <div class="layer frag" data-frag="6"><b>6 · a versioned dataset</b> <span>— once "which
+          data was that?" has cost you a day of your life.</span></div>
+        <div class="layer frag" data-frag="5"><b>5 · a review queue</b> <span>— when a human verdict
+          would change a decision you make.</span></div>
+        <div class="layer frag" data-frag="4"><b>4 · a consumer that survives</b> <span>— timeout,
+          fallback, breaker. Written once, for every dependency you have.</span></div>
+        <div class="layer frag" data-frag="3"><b>3 · telemetry in a table</b> <span>— every decision
+          and every failure stored as rows you can query.</span></div>
+        <div class="layer frag" data-frag="2"><b>2 · serving from an alias</b> <span>— the server
+          asks for <code>@champion</code>. Changing the model becomes moving a name.</span></div>
+        <div class="layer frag" data-frag="1"><b>1 · a registry, and nothing else</b> <span>— every
+          run written down, every model named and numbered. One afternoon.</span></div>
+      </div>
+      <div>
+        <div class="callout frag" data-frag="8">Stages A to F all work with no scheduler anywhere.
+          A small team can run this loop by hand for a year and be in a far better position than a
+          team with a beautiful DAG and no telemetry.</div>
+        <p class="small frag" data-frag="9" style="margin-top:.8em">The order matters more than the
+          tools. Each rung produces the evidence that the next one is needed — and the evidence
+          that it is working once you have it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 26 · the regulator ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · why a bank cares</span>
+    <h2>Six questions an auditor asks, and the record that answers each</h2>
+    <p class="sub">Rules differ by country and by sector, and this is not legal advice. The pattern
+      behind them is always the same: <b>show your work</b>.</p>
+  </header>
+  <div class="body">
+    <div class="pairs">
+      <span class="q frag" data-frag="1">"Which model made this decision?"</span>
+      <span class="a frag" data-frag="1">the model version is stamped on every row in
+        <code>scored_transactions</code></span>
+      <span class="q frag" data-frag="2">"When did the model change?"</span>
+      <span class="a frag" data-frag="2">the registry keeps numbered versions; moving
+        <code>@champion</code> is a recorded event</span>
+      <span class="q frag" data-frag="3">"What data did it learn from?"</span>
+      <span class="a frag" data-frag="3">the run carries the dataset fingerprint, and the
+        fingerprint names exact bytes</span>
+      <span class="q frag" data-frag="4">"How has it performed since it went live?"</span>
+      <span class="a frag" data-frag="4">the telemetry tables, plus the verdicts that arrive later
+        as ground truth</span>
+      <span class="q frag" data-frag="5">"Where is the human oversight?"</span>
+      <span class="a frag" data-frag="5">the review queue: a named analyst and a timestamp on every
+        verdict</span>
+      <span class="q frag" data-frag="6">"Can you reproduce it?"</span>
+      <span class="a frag" data-frag="6">same image, same environment variables, same data
+        fingerprint</span>
+    </div>
+    <div class="callout frag" data-frag="7">Not one of those answers required extra work for the
+      auditor. <b>They are by-products of the loops</b> — which is the argument for MLOps that a
+      finance employer understands fastest.</div>
+    <p class="small frag" data-frag="8">Written records of this kind are what the EU AI Act asks of
+      a high-risk system, what model-risk rules have asked of banks for years, and what your own
+      colleague asks when a decision is questioned six months later.</p>
+  </div>
+</section>
+
+<!-- ======================= 27 · where an LLM plugs in ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · the next thing you will be asked for</span>
+    <h2>Where a large language model plugs into this same loop</h2>
+    <p class="sub">The boxes change. The loops do not.</p>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent frag" data-frag="1">
+        <h3>What changes</h3>
+        <ul>
+          <li class="plain">You did not train the model, so <b>the prompt is the thing you
+            version</b>. Keep it in git and stamp it on every call.</li>
+          <li class="plain">Pin the model name and its date. Providers change what sits behind a
+            name, and your results move without you.</li>
+          <li class="plain">The test set becomes an <b>evaluation set</b>: examples with expected
+            answers, run on every change to the prompt.</li>
+          <li class="plain">Telemetry gains two columns: money per call, and tokens. A model that
+            is 2% better and five times dearer is a business decision again.</li>
+        </ul>
+      </div>
+      <div class="card accent-3 frag" data-frag="2">
+        <h3>What is exactly the same</h3>
+        <ul>
+          <li class="plain">A confidence band that routes the uncertain cases to a human.</li>
+          <li class="plain">A queue where that human answers, and a table where the answers
+            land.</li>
+          <li class="plain">A consumer that must survive the endpoint being slow or absent — and
+            LLM endpoints are slow and absent far more often than this one.</li>
+          <li class="plain">A record of which version answered, when, and on what evidence.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout frag" data-frag="3">In <i>this</i> project the honest place for one is
+      writing the analyst's case summary from the transaction history — <b>helping the human decide,
+      not making the decision</b>. Everything you have built around the fraud model is what would
+      make that safe to run.</div>
+  </div>
+</section>
+
+<!-- ======================= 28 · closing ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · where the loops meet</span>
+    <h2>The model was the easy part</h2>
+  </header>
+  <div class="body">
+    <div class="cols three">
+      <div class="card accent frag" data-frag="1">
+        <h3>① decision · seconds</h3>
+        <p>A transaction, a decision, and an application that keeps its promise even when there is
+          no decision to be had.</p>
+      </div>
+      <div class="card accent-2 frag" data-frag="2">
+        <h3>② label · minutes</h3>
+        <p>The uncertain cases go to a person, and the verdicts come back by two paths, because one
+          of them can silently lose what you paid for.</p>
+      </div>
+      <div class="card accent-3 frag" data-frag="3">
+        <h3>③ improvement · days</h3>
+        <p>Verdicts become a dataset with a fingerprint, a run, and a comparison that is allowed to
+          say no.</p>
+      </div>
+    </div>
+    <ul>
+      <li class="frag" data-frag="4"><code>train.py</code> is 250 lines. Everything else on these
+        slides is what separates a model from a system that keeps working:</li>
+      <li class="plain frag" data-frag="5">the threshold that travels with the model · the
+        application that survives its absence · the queue that must not show the analyst the answer
+        · the fingerprint that makes a dataset a fact · and the promotion that can refuse.</li>
+    </ul>
+    <div class="callout frag" data-frag="6">Now open <code>part2/notebooks/hub.ipynb</code> and run
+      it. The slides gave the meaning; the notebook gives the commands, and about ninety minutes of
+      waiting for containers.</div>
+  </div>
+</section>
+
+<div class="hint"><kbd>↑</kbd> <kbd>↓</kbd> slide &nbsp;·&nbsp; <kbd>←</kbd> <kbd>→</kbd> reveal &nbsp;·&nbsp; <kbd>f</kbd> full screen &nbsp;·&nbsp; <kbd>d</kbd> dark</div>
+<script src="deck.js"></script>
+</body>
+</html>

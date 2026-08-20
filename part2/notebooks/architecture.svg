@@ -57,7 +57,7 @@
   <text class="h2" x="30" y="58">Every section of the notebook carries one of these codes. The loops are the point: a model is not a delivery, it is a cycle.</text>
 
   <!-- ================= row 1: A B C D ================= -->
-  <g>
+  <g id="dg-a">
     <rect class="card" x="30" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="46" y="116">A · DATA</text>
     <line class="rule" x1="46" y1="128" x2="224" y2="128"/>
@@ -66,7 +66,7 @@
     <text class="item" x="46" y="190"><tspan class="code">A3</tspan>  features.py, shared</text>
   </g>
 
-  <g>
+  <g id="dg-b">
     <rect class="card" x="320" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="336" y="116">B · TRAIN</text>
     <line class="rule" x1="336" y1="128" x2="514" y2="128"/>
@@ -75,7 +75,7 @@
     <text class="item" x="336" y="190"><tspan class="code">B3</tspan>  registry → @champion</text>
   </g>
 
-  <g>
+  <g id="dg-c">
     <rect class="card" x="610" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="626" y="116">C · SERVE</text>
     <line class="rule" x1="626" y1="128" x2="804" y2="128"/>
@@ -84,7 +84,7 @@
     <text class="item" x="626" y="190">      decline</text>
   </g>
 
-  <g>
+  <g id="dg-d">
     <rect class="card" x="910" y="88" width="210" height="118" rx="10"/>
     <text class="title" x="926" y="116">D · CONSUME</text>
     <line class="rule" x1="926" y1="128" x2="1104" y2="128"/>
@@ -94,14 +94,14 @@
   </g>
 
   <!-- ================= the store ================= -->
-  <g>
+  <g id="dg-pg">
     <rect class="card" x="610" y="296" width="510" height="76" rx="10"/>
     <text class="title" x="626" y="324">POSTGRES — THE SPINE</text>
     <text class="item" x="626" y="348">scored_transactions · app_requests · review_tasks · verdicts</text>
   </g>
 
   <!-- ================= row 3: F and E ================= -->
-  <g>
+  <g id="dg-f">
     <rect class="card" x="320" y="436" width="210" height="100" rx="10"/>
     <text class="title" x="336" y="464">F · VERSION</text>
     <line class="rule" x1="336" y1="476" x2="514" y2="476"/>
@@ -109,7 +109,7 @@
     <text class="item" x="336" y="518"><tspan class="code">F2</tspan>  dvc hash on the run</text>
   </g>
 
-  <g>
+  <g id="dg-e">
     <rect class="card" x="910" y="436" width="210" height="100" rx="10"/>
     <text class="title" x="926" y="464">E · REVIEW</text>
     <line class="rule" x1="926" y1="476" x2="1104" y2="476"/>
@@ -119,44 +119,58 @@
 
   <!-- ================= flows ================= -->
   <!-- A -> B -> C -->
-  <path class="flow" marker-end="url(#a)" d="M240,147 H314"/>
-  <text class="note" x="277" y="139" text-anchor="middle">1.3M rows</text>
-  <path class="flow" marker-end="url(#a)" d="M530,147 H604"/>
-  <text class="note" x="567" y="139" text-anchor="middle">@champion</text>
+  <g id="fl-ab">
+    <path class="flow" marker-end="url(#a)" d="M240,147 H314"/>
+    <text class="note" x="277" y="139" text-anchor="middle">1.3M rows</text>
+  </g>
+  <g id="fl-bc">
+    <path class="flow" marker-end="url(#a)" d="M530,147 H604"/>
+    <text class="note" x="567" y="139" text-anchor="middle">@champion</text>
+  </g>
 
   <!-- loop 1: C <-> D -->
-  <path class="flow l1" marker-end="url(#a1)" d="M820,130 H904"/>
-  <text class="note" x="862" y="122" text-anchor="middle">decision</text>
-  <path class="flow l1" marker-end="url(#a1)" d="M910,168 H826"/>
-  <text class="note" x="862" y="186" text-anchor="middle">transaction</text>
-  <text class="t1" x="862" y="232" text-anchor="middle">① decision loop</text>
-  <text class="note" x="862" y="248" text-anchor="middle">seconds</text>
+  <g id="fl-loop1">
+    <path class="flow l1" marker-end="url(#a1)" d="M820,130 H904"/>
+    <text class="note" x="862" y="122" text-anchor="middle">decision</text>
+    <path class="flow l1" marker-end="url(#a1)" d="M910,168 H826"/>
+    <text class="note" x="862" y="186" text-anchor="middle">transaction</text>
+    <text class="t1" x="862" y="232" text-anchor="middle">① decision loop</text>
+    <text class="note" x="862" y="248" text-anchor="middle">seconds</text>
+  </g>
 
   <!-- C, D -> postgres -->
-  <path class="flow" marker-end="url(#a)" d="M715,206 V290"/>
-  <text class="note" x="725" y="252">what the server did</text>
-  <path class="flow" marker-end="url(#a)" d="M1015,206 V290"/>
-  <text class="note" x="1025" y="252">what the client saw</text>
+  <g id="fl-pg">
+    <path class="flow" marker-end="url(#a)" d="M715,206 V290"/>
+    <text class="note" x="725" y="252">what the server did</text>
+    <path class="flow" marker-end="url(#a)" d="M1015,206 V290"/>
+    <text class="note" x="1025" y="252">what the client saw</text>
+  </g>
 
   <!-- loop 2: postgres <-> label studio -->
-  <path class="flow l2" marker-end="url(#a2)" d="M980,372 V430"/>
-  <text class="note" x="972" y="408" text-anchor="end">review band</text>
-  <path class="flow l2" marker-end="url(#a2)" d="M1050,436 V378"/>
-  <text class="note" x="1058" y="408">verdicts</text>
-  <text class="t2" x="890" y="492" text-anchor="end">② label loop</text>
-  <text class="note" x="890" y="508" text-anchor="end">minutes — a human decides</text>
+  <g id="fl-loop2">
+    <path class="flow l2" marker-end="url(#a2)" d="M980,372 V430"/>
+    <text class="note" x="972" y="408" text-anchor="end">review band</text>
+    <path class="flow l2" marker-end="url(#a2)" d="M1050,436 V378"/>
+    <text class="note" x="1058" y="408">verdicts</text>
+    <text class="t2" x="890" y="492" text-anchor="end">② label loop</text>
+    <text class="note" x="890" y="508" text-anchor="end">minutes — a human decides</text>
+  </g>
 
   <!-- loop 3: postgres -> snapshot -> train -->
-  <path class="flow l3" marker-end="url(#a3)" d="M700,372 V486 H536"/>
-  <text class="note" x="598" y="478" text-anchor="middle">verdicts + original rows</text>
-  <path class="flow l3" marker-end="url(#a3)" d="M370,436 V212"/>
-  <text class="note" x="360" y="330" text-anchor="end">new training set</text>
-  <text class="t3" x="40" y="326">③ improvement loop</text>
-  <text class="note" x="40" y="342">days — the model that ships next</text>
-  <text class="note" x="40" y="358">is made of what this one got wrong</text>
+  <g id="fl-loop3">
+    <path class="flow l3" marker-end="url(#a3)" d="M700,372 V486 H536"/>
+    <text class="note" x="598" y="478" text-anchor="middle">verdicts + original rows</text>
+    <path class="flow l3" marker-end="url(#a3)" d="M370,436 V212"/>
+    <text class="note" x="360" y="330" text-anchor="end">new training set</text>
+    <text class="t3" x="40" y="326">③ improvement loop</text>
+    <text class="note" x="40" y="342">days — the model that ships next</text>
+    <text class="note" x="40" y="358">is made of what this one got wrong</text>
+  </g>
 
   <!-- ================= G band ================= -->
-  <rect class="band" x="30" y="576" width="1090" height="56" rx="10"/>
-  <text class="title" x="46" y="600">G · ORCHESTRATE — Airflow :8090</text>
-  <text class="item" x="46" y="620"><tspan class="code">G1</tspan> fraud_retrain drives ③ on demand   ·   <tspan class="code">G2</tspan> sync_labels drives ② every 15 min   ·   every task wraps a command you already ran by hand</text>
+  <g id="dg-g">
+    <rect class="band" x="30" y="576" width="1090" height="56" rx="10"/>
+    <text class="title" x="46" y="600">G · ORCHESTRATE — Airflow :8090</text>
+    <text class="item" x="46" y="620"><tspan class="code">G1</tspan> fraud_retrain drives ③ on demand   ·   <tspan class="code">G2</tspan> sync_labels drives ② every 15 min   ·   every task wraps a command you already ran by hand</text>
+  </g>
 </svg>
