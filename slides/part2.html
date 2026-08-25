@@ -47,7 +47,7 @@
   .tbl .p1 { color: var(--ink2); }
   .tbl .p2 { color: var(--ink); }
 
-  /* slide 24 — the adoption ladder, top rung last */
+  /* slide 25 — the adoption ladder, top rung last */
   .stack { display: flex; flex-direction: column; gap: .3em; width: 100%; }
   .layer {
     border: 1px solid var(--line); border-radius: .35em; background: var(--card);
@@ -58,7 +58,7 @@
   .layer span { color: var(--ink3); }
   .layer.top { border-color: var(--c2); background: var(--c2-soft); }
 
-  /* slide 25 — a question and the record that answers it */
+  /* slide 27 — a question and the record that answers it */
   .pairs { display: grid; grid-template-columns: 1fr 1.2fr; gap: .8em 1.1em; font-size: .76em; }
   .pairs .q, .pairs .a { padding-bottom: .55em; border-bottom: 1px solid var(--rule); }
   .pairs .q { color: var(--ink); }
@@ -1169,49 +1169,95 @@ merchant "Kozey-..."  <span class="hl">merchant</span> 1663 of 2048</pre>
   </div>
 </section>
 
-<!-- ======================= 20 · hashes and parquet ======================= -->
+<!-- ======================= 20 · what a hash is ======================= -->
 <section class="slide">
   <header>
-    <span class="kicker">Part 2 · F version · F1 two concepts</span>
-    <h2>Two concepts</h2>
+    <span class="kicker">Part 2 · F version · F1 what a hash is</span>
+    <h2>You have used hashing already, twice</h2>
+    <p class="sub">A hash function reads bytes and gives back a short string. The same bytes always
+      give the same string. One byte different gives a completely different one — there is no
+      "almost the same".</p>
   </header>
   <div class="body">
     <div class="cols two">
       <div class="card accent frag" data-frag="1">
-        <h3>A hash</h3>
+        <h3>Every set and every dict in Python</h3>
         <ul>
-          <li class="plain">A function that reads bytes and returns a short string. The same bytes
-            always give the same string.</li>
-          <li class="plain">Change one byte anywhere and the string is completely different. There
-            is no "almost the same".</li>
-          <li class="plain">It is a fingerprint, not a summary. You cannot rebuild the file from
-            it.</li>
-          <li class="plain">So two files with the same hash are, for our purposes, the same file —
-            whatever they are called and wherever they are.</li>
+          <li class="plain"><code>x in some_set</code> answers at once on a million items.
+            <code>x in some_list</code> reads them one after another until it finds x.</li>
+          <li class="plain">The set never searches. It hashes <code>x</code>, and the string says
+            where x would have been stored. It looks in that one place — which is also why
+            <code>d["merchant"]</code> costs the same in a dict of ten keys and one of ten
+            million.</li>
+          <li class="plain">And why a list cannot be a dict key: its contents can change, so its
+            fingerprint would not stay where it was put.</li>
         </ul>
       </div>
       <div class="card accent-2 frag" data-frag="2">
-        <h3>Parquet</h3>
+        <h3>Every large file you have downloaded</h3>
         <ul>
-          <li class="plain">A file format for tables. CSV is text: every number is written as
-            characters, and every reader has to guess the types.</li>
-          <li class="plain">Parquet keeps each column together, in binary, compressed, with the
-            type recorded in the file.</li>
-          <li class="plain">Smaller and much faster to read. Here: 84 MB, against about 500 MB of
-            CSV.</li>
-          <li class="plain">A person cannot read it in a text editor, which is fine. A program
-            reads it.</li>
+          <li class="plain">Hugging Face and Kaggle publish a checksum beside each file. A checksum
+            is a hash of the bytes they hold.</li>
+          <li class="plain">When your 5 GB download ends, the tool hashes what arrived and compares
+            the two short strings. Equal: nothing was lost on the way. Different: throw it away and
+            ask again. <b>Nobody compares 5 GB byte by byte.</b></li>
+          <li class="plain">Hugging Face goes further and stores each file under its own hash as the
+            name, so asking twice for the same file downloads it once.</li>
         </ul>
       </div>
     </div>
-    <div class="callout frag" data-frag="3">Hashing only works if the file is written the same way
-      every time. The rows are sorted, the row numbers are not written, and no timestamp goes in.
-      <b>An unstable sort would change the fingerprint without changing the data</b>, and the
-      versioning would then mean nothing.</div>
+    <pre class="frag" data-frag="3"><span class="cm"># 1,296,691 rows. In the second file, one of them has one cent more.</span>
+fraud_training.parquet            <span class="hl">cf7b9955942cc36a68c45d90972263f4</span>
+fraud_training.parquet  (edited)  <span class="hl">b89fd6f606db11cc23404f2cd7a98dd4</span></pre>
+    <div class="callout frag" data-frag="4">A fingerprint that can tell you a download arrived
+      intact can tell you a training set is the one you trained on last month. <b>Same tool, new
+      job.</b></div>
   </div>
 </section>
 
-<!-- ======================= 21 · a dataset with an identity ======================= -->
+<!-- ======================= 21 · parquet, and a stable write ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · F version · F1 the file format</span>
+    <h2>Parquet, and why the file must be written the same way every time</h2>
+  </header>
+  <div class="body">
+    <div class="cols two">
+      <div class="card accent-2 frag" data-frag="1">
+        <h3>What parquet is</h3>
+        <ul>
+          <li class="plain">A file format for tables. CSV is text: every number is written out as
+            characters, and every reader has to guess the types again.</li>
+          <li class="plain">Parquet keeps each column together, in binary, compressed, with the type
+            recorded inside the file.</li>
+          <li class="plain">Smaller and much faster to read. Here: 84 MB, against about 500 MB of the
+            same rows as CSV.</li>
+          <li class="plain">A person cannot read it in a text editor, which is fine. A program reads
+            it.</li>
+        </ul>
+      </div>
+      <div>
+        <pre class="frag" data-frag="2"><span class="cm"># part2/pipeline/build_dataset.py</span>
+df = df.sort_values([<span class="hl">"trans_date_trans_time", "trans_num"</span>],
+                    kind=<span class="hl">"stable"</span>)
+df.to_parquet(OUT, <span class="hl">index=False</span>)</pre>
+        <p class="small frag" data-frag="3" style="margin-top:.7em">Same rows in, same bytes out,
+          today and in November. Nothing that moves on its own is allowed into the file: no row
+          numbers, no build timestamp, and no "in whatever order they arrived".</p>
+      </div>
+    </div>
+    <pre class="frag" data-frag="4"><span class="cm">$ md5sum data/derived/fraud_training.parquet</span>
+<span class="hl">cf7b9955942cc36a68c45d90972263f4</span>  fraud_training.parquet</pre>
+    <p class="small frag" data-frag="5">Build the file again tomorrow from the same rows and this
+      command prints the same 32 characters. It is also exactly the number DVC keeps in git, which
+      is the next slide.</p>
+    <div class="callout frag" data-frag="6">The fingerprint is of the file, not of the data. <b>An
+      unstable sort would change the fingerprint without changing a single value</b> — every rebuild
+      would then look like new data, and the versioning would mean nothing at all.</div>
+  </div>
+</section>
+
+<!-- ======================= 22 · a dataset with an identity ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · F version · F1 and F2 the snapshot</span>
@@ -1244,8 +1290,9 @@ merchant "Kozey-..."  <span class="hl">merchant</span> 1663 of 2048</pre>
         <pre class="frag" data-frag="1"><span class="cm"># data/derived/fraud_training.parquet.dvc</span>
 <span class="cm"># 106 bytes, committed to git</span>
 outs:
-- md5: <span class="hl">3f2a7c19…c81</span>
-  size: 88014592
+- md5: <span class="hl">cf7b9955942cc36a68c45d90972263f4</span>
+  size: 84098264
+  hash: md5
   path: fraud_training.parquet</pre>
         <p class="small frag" data-frag="7" style="margin-top:.7em">Git tracks the pointer. The
           parquet file lives beside it, ignored by git, rebuilt by a script. One line in a commit
@@ -1255,7 +1302,7 @@ outs:
   </div>
 </section>
 
-<!-- ======================= 22 · airflow and DAGs ======================= -->
+<!-- ======================= 23 · airflow and DAGs ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · G orchestrate · what Airflow is</span>
@@ -1310,7 +1357,7 @@ outs:
   </div>
 </section>
 
-<!-- ======================= 23 · the two DAGs ======================= -->
+<!-- ======================= 24 · the two DAGs ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · G orchestrate · G1 and G2, the two DAGs</span>
@@ -1356,7 +1403,7 @@ outs:
   </div>
 </section>
 
-<!-- ======================= 24 · the adoption ladder ======================= -->
+<!-- ======================= 25 · the adoption ladder ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · what to take to work</span>
@@ -1394,7 +1441,87 @@ outs:
   </div>
 </section>
 
-<!-- ======================= 25 · the regulator ======================= -->
+<!-- ======================= 26 · one run, written down ======================= -->
+<section class="slide">
+  <header>
+    <span class="kicker">Part 2 · why a bank cares · reproducibility</span>
+    <h2>Four things decide what a model is, and the run writes down all four</h2>
+    <p class="sub">"Reproduce it" is not a heroic act of memory. It is reading back what was
+      recorded while the model was being trained.</p>
+  </header>
+  <div class="body">
+    <div class="diagram" style="max-height:70%">
+      <svg viewBox="0 0 900 380" role="img" aria-label="Four recorded inputs — data, hyperparameters, threshold and code — feed one training run, which produces the model version that every decision carries">
+        <defs>
+          <marker id="pv-mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--ink2)"/>
+          </marker>
+        </defs>
+
+        <g class="frag" data-frag="1">
+          <rect x="344" y="130" width="224" height="110" rx="8" fill="var(--card)" stroke="var(--ink2)" stroke-width="1.8"/>
+          <text x="456" y="162" text-anchor="middle" font-size="14" font-weight="650" fill="var(--ink)">one training run</text>
+          <text x="456" y="184" text-anchor="middle" font-size="11.5" fill="var(--ink2)" font-family="ui-monospace, Menlo, monospace">fraud-keras · run 8f3c1d…</text>
+          <text x="456" y="208" text-anchor="middle" font-size="10.5" fill="var(--ink3)">nothing here is typed by hand later —</text>
+          <text x="456" y="223" text-anchor="middle" font-size="10.5" fill="var(--ink3)">the run records it while it trains</text>
+        </g>
+
+        <g class="frag" data-frag="2">
+          <rect x="14" y="4" width="286" height="76" rx="7" fill="var(--card)" stroke="var(--c1)" stroke-width="1.4"/>
+          <text x="30" y="30" font-size="13" font-weight="650" fill="var(--ink)">the data</text>
+          <text x="30" y="50" font-size="11" fill="var(--c1)" font-family="ui-monospace, Menlo, monospace">dvc_md5  cf7b9955…63f4</text>
+          <text x="30" y="68" font-size="10" fill="var(--ink3)">run tag · 106 bytes in git name the exact 84 MB</text>
+          <path d="M300 42 H310 V152 H340" fill="none" stroke="var(--ink2)" stroke-width="1.5" marker-end="url(#pv-mk)"/>
+        </g>
+
+        <g class="frag" data-frag="3">
+          <rect x="14" y="98" width="286" height="76" rx="7" fill="var(--card)" stroke="var(--c1)" stroke-width="1.4"/>
+          <text x="30" y="124" font-size="13" font-weight="650" fill="var(--ink)">the settings</text>
+          <text x="30" y="144" font-size="11" fill="var(--c1)" font-family="ui-monospace, Menlo, monospace">lr=1e-3 · epochs=5 · hidden=128,64</text>
+          <text x="30" y="162" font-size="10" fill="var(--ink3)">run params · each one an env var given at launch</text>
+          <path d="M300 136 H318 V177 H340" fill="none" stroke="var(--ink2)" stroke-width="1.5" marker-end="url(#pv-mk)"/>
+        </g>
+
+        <g class="frag" data-frag="4">
+          <rect x="14" y="192" width="286" height="76" rx="7" fill="var(--card)" stroke="var(--c2)" stroke-width="1.4"/>
+          <text x="30" y="218" font-size="13" font-weight="650" fill="var(--ink)">the business rule</text>
+          <text x="30" y="238" font-size="11" fill="var(--c2)" font-family="ui-monospace, Menlo, monospace">operating_threshold  0.62</text>
+          <text x="30" y="256" font-size="10" fill="var(--ink3)">run tag · chosen on validation, stored with the model</text>
+          <path d="M300 230 H326 V202 H340" fill="none" stroke="var(--ink2)" stroke-width="1.5" marker-end="url(#pv-mk)"/>
+        </g>
+
+        <g class="frag" data-frag="5">
+          <rect x="14" y="286" width="286" height="76" rx="7" fill="var(--card)" stroke="var(--ink3)" stroke-width="1.4" stroke-dasharray="6 4"/>
+          <text x="30" y="312" font-size="13" font-weight="650" fill="var(--ink2)">the code</text>
+          <text x="30" y="332" font-size="11" fill="var(--ink3)" font-family="ui-monospace, Menlo, monospace">image  keras-mlops-fraud-trainer</text>
+          <text x="30" y="350" font-size="10" fill="var(--ink3)">features.py and train.py travel inside the image</text>
+          <path d="M300 324 H334 V227 H340" fill="none" stroke="var(--ink2)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#pv-mk)"/>
+        </g>
+
+        <g class="frag" data-frag="6">
+          <path d="M568 185 H584 V142 H596" fill="none" stroke="var(--ink2)" stroke-width="1.5" marker-end="url(#pv-mk)"/>
+          <rect x="600" y="104" width="286" height="76" rx="7" fill="var(--card)" stroke="var(--line)" stroke-width="1.4"/>
+          <text x="616" y="130" font-size="13" font-weight="650" fill="var(--ink)">model version 14</text>
+          <text x="616" y="150" font-size="11" fill="var(--c3)" font-family="ui-monospace, Menlo, monospace">@champion</text>
+          <text x="616" y="168" font-size="10" fill="var(--ink3)">the registry keeps the number; the alias is moved</text>
+          <path d="M743 180 V242" fill="none" stroke="var(--ink2)" stroke-width="1.5" marker-end="url(#pv-mk)"/>
+          <rect x="600" y="250" width="286" height="76" rx="7" fill="var(--card)" stroke="var(--line)" stroke-width="1.4"/>
+          <text x="616" y="276" font-size="13" font-weight="650" fill="var(--ink)">every decision made</text>
+          <text x="616" y="296" font-size="11" fill="var(--ink2)" font-family="ui-monospace, Menlo, monospace">scored_transactions.model_version</text>
+          <text x="616" y="314" font-size="10" fill="var(--ink3)">one row per transaction, the version stamped on it</text>
+        </g>
+      </svg>
+    </div>
+    <div class="callout frag" data-frag="7">Read the picture backwards and you have the answer to
+      "why was this transaction declined in March?" — the row names a version, the version names a
+      run, and <b>the run names the data, the settings and the threshold</b> that produced it.</div>
+    <p class="small frag" data-frag="8">The dashed edge is the honest one. The image is named by a
+      tag, not by a fingerprint, so nothing in the registry records <i>which</i> version of
+      <code>features.py</code> built a model's inputs. Everything else on this picture is exact.</p>
+  </div>
+</section>
+
+<!-- ======================= 27 · the regulator ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · why a bank cares</span>
@@ -1432,7 +1559,7 @@ outs:
   </div>
 </section>
 
-<!-- ======================= 26 · where an LLM plugs in ======================= -->
+<!-- ======================= 28 · where an LLM plugs in ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · the next thing you will be asked for</span>
@@ -1473,7 +1600,7 @@ outs:
   </div>
 </section>
 
-<!-- ======================= 27 · closing ======================= -->
+<!-- ======================= 29 · closing ======================= -->
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · where the loops meet</span>

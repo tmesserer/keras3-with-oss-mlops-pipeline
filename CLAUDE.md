@@ -261,8 +261,8 @@ knob means adding an env var with a default there, not a config file or a CLI fl
 ## The slides
 
 **`slides/` is where a student starts.** Three decks, opened straight from the filesystem —
-`slides.html` (course introduction, 2 slides), `part1.html` (10 slides) and `part2.html`
-(27 slides). The audience has no IT background, so the decks
+`Overview_slides.html` (course introduction, 2 slides), `part1.html` (10 slides) and `part2.html`
+(29 slides). The audience has no IT background, so the decks
 define the vocabulary the notebooks assume: container, image, layer, registry, volume,
 endpoint. They do not define ML basics.
 
@@ -308,14 +308,15 @@ Part 1's ten slides: the map (the diagram, revealed in eight steps) · training 
 two evaluations · what MLflow is · why containers · image layers · `CMD` and env at launch ·
 volumes · the dataset · serving and Pydantic.
 
-Part 2's twenty-seven, in six acts: **the step up** (what Part 2 adds · docker compose ·
+Part 2's twenty-nine, in six acts: **the step up** (what Part 2 adds · docker compose ·
 Kubernetes) · **data and model** (map ① and Postgres · four facts about the data · PR-AUC and
 the threshold · what `features.py` computes · the two rules it obeys) · **loop ①** (the decision band · the simulated
 application · timeout, fallback, breaker · what an outage costs) · **loop ②** (map ② · what you
 cannot know without a human · labels are bought · build the review tool yourself · label-sync ·
-HITL is not free) · **loop ③** (map ③ · hashes and parquet · a dataset with an identity ·
-Airflow by analogy · the two DAGs) · **out of the classroom** (the adoption ladder · six
-questions an auditor asks · where an LLM plugs in · the closing map in words). Two charts on
+HITL is not free) · **loop ③** (map ③ · what a hash is · parquet and a stable write · a dataset
+with an identity · Airflow by analogy · the two DAGs) · **out of the classroom** (the adoption
+ladder · one run written down · six questions an auditor asks · where an LLM plugs in · the
+closing map in words). Two charts on
 the outage slide use assumed costs, stated in the caption; the latencies are the real ones
 from D2.
 
