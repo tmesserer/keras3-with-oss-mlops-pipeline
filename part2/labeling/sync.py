@@ -216,23 +216,24 @@ def pull_annotations() -> dict:
     Webhooks are the fast path and this is the correct one: if this container was down, or a
     delivery failed, the annotation still exists in Label Studio and nothing else would ever
     notice. Run it after any outage.
+
+    One export call, not one request per task. The queue holds every review-band transaction
+    ever pushed -- tens of thousands after a few sessions -- while the annotated ones are the
+    handful an analyst got through. `download_all_tasks=false` returns exactly those, so this
+    stays a second's work no matter how long the backlog has grown.
     """
     saved = seen = 0
-    with _connect() as db:
-        ids = [r[0] for r in db.execute(
-            "SELECT ls_task_id FROM review_tasks WHERE ls_project_id = %s",
-            (STATE["project_id"],)).fetchall()]
     with _client() as c:
-        for tid in ids:
-            r = c.get(f"/api/tasks/{tid}/annotations/")
-            if r.status_code == 404:
-                continue
-            r.raise_for_status()
-            for a in r.json():
-                seen += 1
-                if (ch := _choice(a.get("result"))) and save_verdict(
-                        tid, ch, a.get("completed_by")):
-                    saved += 1
+        r = c.get(f"/api/projects/{STATE['project_id']}/export",
+                  params={"exportType": "JSON", "download_all_tasks": "false"})
+        r.raise_for_status()
+        tasks = r.json()
+    for t in tasks:
+        for a in t.get("annotations") or []:
+            seen += 1
+            if (ch := _choice(a.get("result"))) and save_verdict(
+                    t["id"], ch, a.get("completed_by")):
+                saved += 1
     return {"annotations_seen": seen, "verdicts_written": saved}
 
 
