@@ -13,11 +13,11 @@ services:
   mlflow-server:
     build: ./mlflow-server
     container_name: mlflow-server
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
     ports:
       - "5000:5000"
     volumes:
-      - ./mlruns:/mlruns
+      - ./mlruns:/mlruns:z
     command: >
       mlflow server
       --host 0.0.0.0 --port 5000
@@ -26,7 +26,10 @@ services:
       --no-serve-artifacts
       --allowed-hosts mlflow-server:5000,localhost:5000,127.0.0.1:5000
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:5000/health')"]
+      # CMD-SHELL, not the exec form: Podman's Docker-compatible API splits the array's
+      # arguments on whitespace, so `python -c "import ..."` reaches the container as
+      # `python -c import` and every check fails with SyntaxError.
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:5000/health')\""]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -35,7 +38,7 @@ services:
   # Part 2 only, but defined here because three different services need it:
   # Label Studio's own store, the analyst verdicts, and the app's telemetry.
   # Each gets its own schema inside the one database (see part2/pipeline/schema.sql).
-  # Runs as the default postgres uid, NOT ${DOCKER_UID} — the official image
+  # Runs as the default postgres uid, NOT ${CONTAINER_UID} — the official image
   # manages its own data dir ownership and fails if you override the user.
   postgres:
     image: postgres:16-alpine
@@ -59,5 +62,5 @@ services:
 
 volumes:
   # Named volume, not a host mount: Postgres needs uid-999 ownership, and a
-  # ./ bind would fight the DOCKER_UID convention used everywhere else.
+  # ./ bind would fight the CONTAINER_UID convention used everywhere else.
   pgdata:

@@ -65,9 +65,40 @@ beyond the images themselves.
 `.env` sets `COMPOSE_FILE=docker-compose.yml:compose.part1.yml`, which is what lets a bare
 `docker compose` see every service without `-f` flags. **If `.env` is missing, only the base
 file loads and `trainer`/`api-serve` appear not to exist.** Both notebooks' first cell writes
-it from `.env.example`, substituting `DOCKER_UID`/`DOCKER_GID`/`DOCKER_SOCK_GID` for this
-machine's, and never overwrites an existing `.env` (it may hold edited Label Studio
-credentials). By hand it is `cp .env.example .env` plus the `sed` line in that file's header.
+it from `.env.example`, substituting `CONTAINER_UID`/`CONTAINER_GID`/`DOCKER_SOCK_GID` for this
+machine's. When an existing `.env` is written for the *other* engine, that cell rewrites only the
+engine ids in place — every other line, edited Label Studio credentials included, is carried
+across — and keeps the previous file as `.env.docker` / `.env.podman`, so switching back costs
+nothing. Switching to docker also deletes the `DOCKER_HOST` line, which would otherwise keep
+sending every command to Podman. By hand it is `cp .env.example .env` plus the `sed` line in that file's header.
+
+**Docker or Podman, decided in one place.** The first cell sets `ENGINE` and `DC`; every command
+cell below it says `!{DC}`, never a literal `docker compose`. Both first cells *ask* which engine
+(`1` docker, `2` podman), falling back after 60 seconds to whichever engine the existing `.env`
+describes — `DOCKER_HOST` naming Podman's socket means Podman, no `.env` means docker — so an
+unanswered question never switches engines under you. They then run prechecks — engine
+installed, engine answering, compose present, `.env` written for that engine — and raise if one
+fails. Part 2 adds two of its own: `--profile part2 config --services` must list eight services,
+and section G's socket must exist. An `ENGINE=` env var set before Jupyter starts skips the
+question. Podman answers the same API, so the commands do not change — only
+`DOCKER_HOST` does. `.env` carries the difference: under rootless
+Podman `CONTAINER_UID`/`CONTAINER_GID` are `0:0` (container uid 0 *is* the host user, so bind mounts stay
+owned by you), `DOCKER_SOCK` is the user socket, and `DOCKER_SOCK_GID` is `0`. `TRAINER_IMAGE` does **not** change: Podman's
+Docker-compatible API finds a locally built image by its bare name, and the `localhost/` prefix
+its own CLI displays makes that API try to pull from a registry instead. `DC` falls back to
+`podman compose` only when there is no `docker` binary at all. Every bind mount carries `:z` for
+SELinux hosts; it is a no-op elsewhere. A new command cell must use `{DC}`, and a new engine-specific
+value belongs in the `ids` dict of both first cells, not in a branch further down.
+Both first cells also
+`os.environ.update(ids)`: compose lets a variable already in the environment win over `.env`, so a
+kernel carrying `CONTAINER_UID` from the other engine would create containers with the wrong user —
+under rootless Podman that container cannot write `./mlruns`, and mlflow-server answers 503 with
+`attempt to write a readonly database`.
+**No cell may use `up --force-recreate`.** Under Podman it leaves
+`com.docker.compose.replace` on the new container, and later compose commands treat it as a
+half-finished replacement and recreate it again — including under a running trainer, which then
+stalls for minutes on MLflow retries before failing. The four cells that restart a service say
+`{DC} rm -sf <service>` then `{DC} up -d <service>`, which is engine-neutral.
 
 ```bash
 docker compose --profile tools --profile serve build
@@ -169,7 +200,10 @@ Part 2 additions worth knowing before editing it:
   so the training environment stays defined in one image. The cost is that the trainer's env
   block is restated in the DAG (compose cannot export a service's environment to a sibling) —
   `compose.part2.yml` is the source of truth; a knob added there needs adding in
-  `TRAINER_ENV` too. The socket needs `DOCKER_SOCK_GID` (`stat -c '%g' /var/run/docker.sock`).
+  `TRAINER_ENV` too. The socket is bound in from `DOCKER_SOCK` and needs `DOCKER_SOCK_GID`
+  (`stat -c '%g' /var/run/docker.sock`; `0` under rootless Podman, where the socket is yours and
+  you are root inside the container). The path *inside* the container is always
+  `/var/run/docker.sock`, which is why the DAG's `docker_url` never changes.
   Hyperparameters in `TRAINER_ENV` are Jinja (`dag_run.conf` over `params`), which is what
   makes `--conf '{"epochs": "15"}'` work — `environment` is a templated field.
 - **Bind sources in the DAG are HOST paths**, from `HOST_REPO_DIR: "${PWD}"`. The daemon
@@ -211,11 +245,15 @@ Constraints that are load-bearing and easy to break:
   one service and model loading breaks with a path error.
 - **`mlruns/.gitkeep` is tracked, and `.gitignore` says `mlruns/*` so it survives.** A bind
   mount whose host directory does not exist is created by the docker daemon as **root**, and
-  `mlflow-server` runs as `${DOCKER_UID}` — it then cannot create `mlflow.db` and dies with
+  `mlflow-server` runs as `${CONTAINER_UID}` — it then cannot create `mlflow.db` and dies with
   `sqlite3.OperationalError: unable to open database file`. Shipping the directory in git is
   what makes a fresh clone work. Same reason `inference/.gitkeep` exists; `data/` is covered by
   the tracked `data/derived/*.dvc`. If it ever does go root-owned:
   `docker run --rm -u 0 -v "$PWD/mlruns:/mlruns" alpine:3 chown -R $(id -u):$(id -g) /mlruns`.
+- **Nothing may hard-code the engine.** The DAG reads `TRAINER_IMAGE` and `DOCKER_NETWORK` from
+  env, compose reads `DOCKER_SOCK`, and the notebooks read `DC`. Podman must run the whole stack or
+  none of it: a sibling container started through a *rootful* socket cannot join a rootless
+  network, so it would never reach `mlflow-server`.
 - **Promotion is manual.** Notebook section C1–C2 compares runs and sets the `champion` alias.
   Nothing polls or promotes automatically. `api-serve` resolves the alias once at startup;
   `POST /reload` re-resolves it live.
@@ -228,7 +266,7 @@ Constraints that are load-bearing and easy to break:
   that the files did not. A dangling `@champion` fails at *service startup* with
   `MlflowException: No such artifact: ''`, not at promotion time. Before promoting, check the
   version's `storage_location` actually exists on disk.
-- Containers run as `${DOCKER_UID}:${DOCKER_GID}` with no `/etc/passwd` entry, so `USER=mlflow`
+- Containers run as `${CONTAINER_UID}:${CONTAINER_GID}` with no `/etc/passwd` entry, so `USER=mlflow`
   and `GIT_PYTHON_REFRESH=quiet` are set to stop `getpass.getuser()` and GitPython from
   failing. Keep them on any new service that talks to MLflow.
 - **Backend is `KERAS_BACKEND=torch` everywhere.** Keras 3 is channels_last on all backends,

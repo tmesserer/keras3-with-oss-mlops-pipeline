@@ -13,7 +13,7 @@ services:
       dockerfile: trainer/Dockerfile
     container_name: fraud-trainer
     profiles: ["part2", "tools2"]
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
     restart: "no"
     depends_on:
       mlflow-server:
@@ -43,8 +43,8 @@ services:
       VAL_FRACTION: "0.1"        # tail of train, by time
       TARGET_PRECISION: "0.90"   # the operating point the threshold is chosen for
     volumes:
-      - ./mlruns:/mlruns
-      - ./data:/data
+      - ./mlruns:/mlruns:z
+      - ./data:/data:z
 
   # --------------------------------------------------------------- inference
   # Serves models:/fraud-keras@champion and turns probabilities into decisions.
@@ -55,7 +55,7 @@ services:
       dockerfile: serving/Dockerfile
     container_name: fraud-serve
     profiles: ["part2", "serve2"]
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
     ports:
       - "8001:8001"
     depends_on:
@@ -78,11 +78,12 @@ services:
       REVIEW_THRESHOLD: ""
       REVIEW_SPAN: "0.5"       # review band starts at decline * this, when not set explicitly
     volumes:
-      - ./mlruns:/mlruns
-      - ./data:/data
-      - ./inference:/inference
+      - ./mlruns:/mlruns:z
+      - ./data:/data:z
+      - ./inference:/inference:z
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8001/health')"]
+      # CMD-SHELL for the reason given in docker-compose.yml: Podman splits exec-form args.
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8001/health')\""]
       interval: 10s
       timeout: 5s
       retries: 30
@@ -98,7 +99,7 @@ services:
       dockerfile: app/Dockerfile
     container_name: txn-app
     profiles: ["part2", "app"]
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
     ports:
       - "5500:5500"
     depends_on:
@@ -117,14 +118,14 @@ services:
       BREAKER_THRESHOLD: "5"     # consecutive failures before the circuit opens
       BREAKER_COOLDOWN: "10"     # seconds before a probe is allowed through
     volumes:
-      - ./data:/data
+      - ./data:/data:z
 
   # ------------------------------------------------------------ review queue
   # Label Studio CE, the open-source review UI (the original plan named Labelbox, which has no
   # self-hostable server -- see section E of the notebook). Shares the one Postgres and keeps
   # its own Django tables in it, alongside the three in part2/pipeline/schema.sql.
   #
-  # NOT run as ${DOCKER_UID}: like postgres, the image fixes ownership of its own data dir
+  # NOT run as ${CONTAINER_UID}: like postgres, the image fixes ownership of its own data dir
   # on boot and fails when the user is overridden. Hence a named volume, not a bind mount.
   label-studio:
     image: heartexlabs/label-studio:1.16.0
@@ -167,7 +168,7 @@ services:
       dockerfile: labeling/Dockerfile
     container_name: label-sync
     profiles: ["part2", "label"]
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
     ports:
       - "8002:8002"
     networks:
@@ -195,11 +196,11 @@ services:
   # ------------------------------------------------------------ orchestration
   # Airflow arrives LAST and automates nothing new: every task in part2/airflow/dags wraps a
   # command sections A-F of part2/notebooks/hub.ipynb already proved by hand. It starts a sibling
-  # fraud-trainer container through the host's docker socket rather than training in-process,
+  # fraud-trainer container through the host's engine socket rather than training in-process,
   # so the training environment stays defined in exactly one image.
   #
-  # NOT run as ${DOCKER_UID}: like postgres and label-studio, the image owns its own
-  # directories (uid 50000). Socket access comes from the supplementary group instead.
+  # NOT run as ${CONTAINER_UID}: like postgres and label-studio, the image owns its own
+  # directories (uid 50000, group 0). Socket access comes from the supplementary group instead.
   airflow:
     build:
       context: ./part2
@@ -209,7 +210,7 @@ services:
     ports:
       - "8090:8080"          # 8080 belongs to Label Studio; both run at once
     group_add:
-      # The gid that owns /var/run/docker.sock on the host -- `stat -c %g /var/run/docker.sock`.
+      # The gid that owns the engine socket on the host -- `stat -c %g $DOCKER_SOCK`.
       # Without it DockerOperator gets "permission denied" on the socket.
       - "${DOCKER_SOCK_GID:-986}"
     depends_on:
@@ -232,20 +233,25 @@ services:
       SNAPSHOT: /data/derived/fraud_training.parquet
       # What the DAG hands to the trainer it launches. The rest of that container's config
       # is restated in the DAG itself -- compose cannot export a service's env to a sibling.
-      TRAINER_IMAGE: keras-mlops-fraud-trainer:latest
-      DOCKER_NETWORK: keras-mlops_default
-      DOCKER_UID: "${DOCKER_UID:-1000}"
-      DOCKER_GID: "${DOCKER_GID:-1000}"
+      # Both come from .env so a different engine or project name can be pointed at the right
+      # image and network. Podman answers to this bare name; a localhost/ prefix would make it
+      # try to pull from a registry called localhost.
+      TRAINER_IMAGE: "${TRAINER_IMAGE:-keras-mlops-fraud-trainer:latest}"
+      DOCKER_NETWORK: "${DOCKER_NETWORK:-keras-mlops_default}"
+      CONTAINER_UID: "${CONTAINER_UID:-1000}"
+      CONTAINER_GID: "${CONTAINER_GID:-1000}"
       DAG_EPOCHS: "5"
       DAG_TRAIN_SUBSET: "0"      # 0 = all rows; set e.g. 200000 for a fast end-to-end demo
       # Bind sources for the trainer are resolved by the daemon on the HOST, so the DAG needs
       # the host path. Compose is always run from the repo root (see COMPOSE_FILE in .env).
       HOST_REPO_DIR: "${PWD}"
     volumes:
-      - ./part2/airflow/dags:/opt/airflow/dags:ro
-      - ./data:/data:ro          # read-only: this service verifies the snapshot, never writes it
-      - ./mlruns:/mlruns:ro      # only to check a model version's artifacts exist before promoting
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ./part2/airflow/dags:/opt/airflow/dags:ro,z
+      - ./data:/data:ro,z        # read-only: this service verifies the snapshot, never writes it
+      - ./mlruns:/mlruns:ro,z    # only to check a model version's artifacts exist before promoting
+      # The engine's socket. Docker's lives at /var/run/docker.sock; Podman's rootful socket
+      # is /run/podman/podman.sock. The path INSIDE stays the same, so the DAG never changes.
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
       - airflow-logs:/opt/airflow/logs
     command: ["airflow", "standalone"]
     healthcheck:

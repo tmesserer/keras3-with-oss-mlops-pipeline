@@ -10,7 +10,7 @@ services:
     build: ./part1/trainer
     container_name: trainer
     profiles: ["tools"]
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
     restart: "no"
     depends_on:
       mlflow-server:
@@ -37,8 +37,8 @@ services:
       BATCH_SIZE: "128"
       TRAIN_SUBSET: "20000"      # 0 = full 60k
     volumes:
-      - ./mlruns:/mlruns
-      - ./data:/data
+      - ./mlruns:/mlruns:z
+      - ./data:/data:z
 
   # --------------------------------------------------------------- inference
   # You trigger this: docker compose --profile serve up -d api-serve
@@ -46,7 +46,7 @@ services:
     build: ./part1/api-serve
     container_name: api-serve
     profiles: ["serve"]
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
     ports:
       - "8000:8000"
     depends_on:
@@ -61,7 +61,7 @@ services:
       GIT_PYTHON_REFRESH: quiet
       MODEL_URI: models:/mnist-keras@champion
     volumes:
-      - ./mlruns:/mlruns
-      - ./inference:/inference
-      - ./data:/data
+      - ./mlruns:/mlruns:z
+      - ./inference:/inference:z
+      - ./data:/data:z
     command: uvicorn app:app --host 0.0.0.0 --port 8000

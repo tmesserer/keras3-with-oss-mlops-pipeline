@@ -34,10 +34,13 @@ SERVE_URL = os.getenv("SERVE_URL", "http://fraud-serve:8001")
 SNAPSHOT = Path(os.getenv("SNAPSHOT", "/data/derived/fraud_training.parquet"))
 POINTER = SNAPSHOT.with_suffix(SNAPSHOT.suffix + ".dvc")
 
-# Paths as the DOCKER DAEMON sees them. Airflow's own /data and /mlruns mounts are useless
-# to a sibling container: the daemon resolves bind sources on the host, not in this
+# Paths as the CONTAINER ENGINE sees them. Airflow's own /data and /mlruns mounts are useless
+# to a sibling container: the engine resolves bind sources on the host, not in this
 # container's namespace. Hence the host path, passed in by compose.
 HOST_REPO = os.environ["HOST_REPO_DIR"]
+# Both come from .env rather than being fixed here, so the same DAG works when the engine or
+# the compose project name differs. Podman finds this image under its bare name, exactly as
+# Docker does.
 DOCKER_NETWORK = os.getenv("DOCKER_NETWORK", "keras-mlops_default")
 TRAINER_IMAGE = os.getenv("TRAINER_IMAGE", "keras-mlops-fraud-trainer:latest")
 
@@ -150,18 +153,23 @@ def fraud_retrain():
         image=TRAINER_IMAGE,
         # run_after, not ds/ts_nodash: those come from logical_date, and an Airflow 3 manual
         # run of an unscheduled DAG has none -- the template renders 'ds is undefined' and the
-        # task fails before docker is ever contacted.
+        # task fails before the engine is ever contacted.
         container_name="fraud-trainer-airflow-{{ dag_run.run_after.strftime('%Y%m%d-%H%M%S') }}",
         environment={**TRAINER_ENV,
                      "RUN_NAME": "airflow-{{ dag_run.run_after.strftime('%Y%m%d-%H%M') }}"},
-        user=f"{os.getenv('DOCKER_UID', '1000')}:{os.getenv('DOCKER_GID', '1000')}",
+        # The same ids the rest of the stack runs as. Under rootless Podman they are 0:0,
+        # which is that engine's way of saying "the host user who started it".
+        user=f"{os.getenv('CONTAINER_UID', '1000')}:{os.getenv('CONTAINER_GID', '1000')}",
         network_mode=DOCKER_NETWORK,    # mlflow-server is a service name, not a host port
         mounts=[
             Mount(source=f"{HOST_REPO}/mlruns", target="/mlruns", type="bind"),
             Mount(source=f"{HOST_REPO}/data", target="/data", type="bind", read_only=True),
         ],
-        mount_tmp_dir=False,            # the default /tmp bind is a docker-in-docker mistake: that path does not exist on the host
+        mount_tmp_dir=False,            # the default /tmp bind is a container-in-container mistake: that path does not exist on the host
         auto_remove="success",          # keep the container on failure, so its logs survive the DAG run
+        # Compose binds the engine's socket to this path whatever the engine is, so a Podman
+        # socket at /run/user/<uid>/podman/podman.sock arrives here unchanged. Podman answers
+        # the same API, which is why DockerOperator needs no Podman-specific branch.
         docker_url="unix://var/run/docker.sock",
         api_version="auto",
         retrieve_output=False,
