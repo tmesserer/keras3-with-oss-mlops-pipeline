@@ -15,20 +15,10 @@ credit-card dataset and adds what Part 1 can't teach: an application depending o
 a human review queue feeding labels back, and a versioned derived dataset. Both parts share one
 MLflow registry and one Postgres.
 
-**Students start at `slides/`, then run the notebooks.** The decks carry the concepts (see
-"The slides" at the end of this file); the notebooks carry the operations.
+**Students start at `slides/`, then run the notebooks.**
 
-**The two notebooks are the documentation.** `part1/notebooks/hub.ipynb` and
-`part2/notebooks/hub.ipynb` carry every explanation this project has;
+**Each part's notebook is organised as lettered stages.**
 
- Explanation belongs in a markdown cell, not in a
-new markdown file.
-
-**Each part's notebook is organised as lettered stages, and each part has exactly one diagram**
-— `part1/notebooks/architecture.svg` and `part2/notebooks/architecture.svg`, referenced once at
-the top of their notebook and never duplicated per section. Both are drawn in the same visual
-language and palette, and Part 1's ends with a "NOT HERE YET" band naming what Part 2 adds. The
-stage codes are the shared vocabulary between notebook, diagram and source.
 
 Part 1 — A data · B train · C select · D serve · E observe, around one loop the student closes
 by hand (which is the setup for Part 2's three automated ones):
