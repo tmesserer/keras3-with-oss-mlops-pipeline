@@ -82,7 +82,7 @@ services:
       - ./data:/data:z
       - ./inference:/inference:z
     healthcheck:
-      # CMD-SHELL for the reason given in docker-compose.yml: Podman splits exec-form args.
+      # CMD-SHELL for the reason given in docker-compose.yml: it keeps the one-liner whole.
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8001/health')\""]
       interval: 10s
       timeout: 5s
@@ -123,7 +123,7 @@ services:
   # ------------------------------------------------------------ review queue
   # Label Studio CE, the open-source review UI (the original plan named Labelbox, which has no
   # self-hostable server -- see section E of the notebook). Shares the one Postgres and keeps
-  # its own Django tables in it, alongside the three in part2/pipeline/schema.sql.
+  # its own Django tables in it, alongside the four in part2/pipeline/schema.sql.
   #
   # NOT run as ${CONTAINER_UID}: like postgres, the image fixes ownership of its own data dir
   # on boot and fails when the user is overridden. Hence a named volume, not a bind mount.
@@ -196,7 +196,7 @@ services:
   # ------------------------------------------------------------ orchestration
   # Airflow arrives LAST and automates nothing new: every task in part2/airflow/dags wraps a
   # command sections A-F of part2/notebooks/hub.ipynb already proved by hand. It starts a sibling
-  # fraud-trainer container through the host's engine socket rather than training in-process,
+  # fraud-trainer container through the host's docker socket rather than training in-process,
   # so the training environment stays defined in exactly one image.
   #
   # NOT run as ${CONTAINER_UID}: like postgres and label-studio, the image owns its own
@@ -210,7 +210,7 @@ services:
     ports:
       - "8090:8080"          # 8080 belongs to Label Studio; both run at once
     group_add:
-      # The gid that owns the engine socket on the host -- `stat -c %g $DOCKER_SOCK`.
+      # The gid that owns the docker socket on the host -- `stat -c %g $DOCKER_SOCK`.
       # Without it DockerOperator gets "permission denied" on the socket.
       - "${DOCKER_SOCK_GID:-986}"
     depends_on:
@@ -233,15 +233,18 @@ services:
       SNAPSHOT: /data/derived/fraud_training.parquet
       # What the DAG hands to the trainer it launches. The rest of that container's config
       # is restated in the DAG itself -- compose cannot export a service's env to a sibling.
-      # Both come from .env so a different engine or project name can be pointed at the right
-      # image and network. Podman answers to this bare name; a localhost/ prefix would make it
-      # try to pull from a registry called localhost.
+      # Both come from .env, so a different project name can be pointed at the right image
+      # and network.
       TRAINER_IMAGE: "${TRAINER_IMAGE:-keras-mlops-fraud-trainer:latest}"
       DOCKER_NETWORK: "${DOCKER_NETWORK:-keras-mlops_default}"
       CONTAINER_UID: "${CONTAINER_UID:-1000}"
       CONTAINER_GID: "${CONTAINER_GID:-1000}"
+      # Defaults for the four hyperparameters fraud_retrain exposes to `--conf`. The rest of
+      # the trainer's config is fixed in the DAG's TRAINER_ENV, restated from fraud-trainer above.
       DAG_EPOCHS: "5"
+      DAG_HIDDEN: "128,64"
       DAG_TRAIN_SUBSET: "0"      # 0 = all rows; set e.g. 200000 for a fast end-to-end demo
+      DAG_TARGET_PRECISION: "0.90"
       # Bind sources for the trainer are resolved by the daemon on the HOST, so the DAG needs
       # the host path. Compose is always run from the repo root (see COMPOSE_FILE in .env).
       HOST_REPO_DIR: "${PWD}"
@@ -249,8 +252,8 @@ services:
       - ./part2/airflow/dags:/opt/airflow/dags:ro,z
       - ./data:/data:ro,z        # read-only: this service verifies the snapshot, never writes it
       - ./mlruns:/mlruns:ro,z    # only to check a model version's artifacts exist before promoting
-      # The engine's socket. Docker's lives at /var/run/docker.sock; Podman's rootful socket
-      # is /run/podman/podman.sock. The path INSIDE stays the same, so the DAG never changes.
+      # The docker socket, so the DAG can start a sibling trainer container. The path
+      # INSIDE the container is always /var/run/docker.sock, so the DAG never changes.
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
       - airflow-logs:/opt/airflow/logs
     command: ["airflow", "standalone"]

@@ -41,3 +41,6 @@ env/
 .vscode/
 .idea/
 .DS_Store
+
+# Project-local Hermes skills
+.hermes/

@@ -186,7 +186,11 @@ def score_sample(i: int):
 
 @app.get("/stats")
 def stats():
-    """Decision mix and latency, straight out of Postgres. The dashboard builds on this."""
+    """Decision mix and latency, straight out of Postgres.
+
+    This is the SERVER's view. txn-app's own /api/stats is the client's, computed from its
+    in-memory window and never from here -- see the two-telemetry-tables note in schema.sql.
+    """
     with _connect() as c:
         rows = c.execute(
             """SELECT model_version, decision, count(*), avg(latency_ms)::real,

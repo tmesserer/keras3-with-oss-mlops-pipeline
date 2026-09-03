@@ -1,8 +1,9 @@
 -- Part 2 tables. Created idempotently at service startup, so there is no migration step
 -- and no ordering dependency between the services that use them.
 --
--- Label Studio manages its own tables in this same database; everything here is prefixed
--- to stay out of its way.
+-- Label Studio manages its own tables in this same database, and Airflow its own on top of
+-- that. All of them share the one `public` schema, so the four tables below carry names no
+-- other service uses.
 
 -- Every transaction the endpoint scored. This is the spine: the review queue selects from
 -- it, the app's dashboard aggregates it, and the retraining snapshot joins it to verdicts.

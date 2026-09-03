@@ -35,7 +35,7 @@ services:
       LR: "1e-3"
       EPOCHS: "3"
       BATCH_SIZE: "128"
-      TRAIN_SUBSET: "20000"      # 0 = full 60k
+      TRAIN_SUBSET: "0"          # 0 = the full 60k; the slides and the diagram say 60k
     volumes:
       - ./mlruns:/mlruns:z
       - ./data:/data:z

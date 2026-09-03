@@ -26,9 +26,8 @@ services:
       --no-serve-artifacts
       --allowed-hosts mlflow-server:5000,localhost:5000,127.0.0.1:5000
     healthcheck:
-      # CMD-SHELL, not the exec form: Podman's Docker-compatible API splits the array's
-      # arguments on whitespace, so `python -c "import ..."` reaches the container as
-      # `python -c import` and every check fails with SyntaxError.
+      # CMD-SHELL, not the exec form: the check is one quoted shell command, so the
+      # python one-liner stays a single argument instead of being split on whitespace.
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:5000/health')\""]
       interval: 5s
       timeout: 3s
@@ -37,7 +36,8 @@ services:
   # ---------------------------------------------------------------- database
   # Part 2 only, but defined here because three different services need it:
   # Label Studio's own store, the analyst verdicts, and the app's telemetry.
-  # Each gets its own schema inside the one database (see part2/pipeline/schema.sql).
+  # All of them share the one `public` schema; the four tables Part 2 adds are in
+  # part2/pipeline/schema.sql and are named so as not to collide with Django's or Airflow's.
   # Runs as the default postgres uid, NOT ${CONTAINER_UID} — the official image
   # manages its own data dir ownership and fails if you override the user.
   postgres:

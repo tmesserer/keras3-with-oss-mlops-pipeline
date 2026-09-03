@@ -430,8 +430,6 @@
   -e RUN_NAME=mlp-128 <span class="hl">-e KIND=mlp</span> \
   -e SIZE=128 -e LR=1e-3 <span class="hl">-e EPOCHS=3</span> \
   trainer</code></pre>
-        <p class="small frag" data-frag="7">On Podman the command is
-          <code>podman compose</code>. Everything after it is the same.</p>
       </div>
     </div>
   </div>
@@ -479,9 +477,10 @@
             <rect x="272" y="112" width="180" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/>
             <text x="288" y="132" fill="var(--ink)" font-size="13" font-weight="650">trainer</text>
             <text x="288" y="148" fill="var(--ink3)" font-size="11" font-family="ui-monospace, monospace">/mlruns · /data</text>
-            <rect x="272" y="172" width="180" height="44" rx="8" fill="var(--card)" stroke="var(--line)"/>
+            <rect x="272" y="172" width="180" height="58" rx="8" fill="var(--card)" stroke="var(--line)"/>
             <text x="288" y="192" fill="var(--ink)" font-size="13" font-weight="650">api-serve</text>
-            <text x="288" y="208" fill="var(--ink3)" font-size="11" font-family="ui-monospace, monospace">/mlruns · /inference</text>
+            <text x="288" y="208" fill="var(--ink3)" font-size="11" font-family="ui-monospace, monospace">/mlruns · /data</text>
+            <text x="288" y="222" fill="var(--ink3)" font-size="11" font-family="ui-monospace, monospace">/inference</text>
           </g>
           <text class="frag" data-frag="4" x="230" y="276" text-anchor="middle" fill="var(--ink3)" font-size="11">same folder, same address, three containers</text>
         </svg>
@@ -505,8 +504,9 @@
           <li class="frag" data-frag="3"><b>The classes are balanced</b> — about 6,000 examples of
             every digit. Accuracy is therefore an honest score, and you can choose a model with
             it.</li>
-          <li class="frag" data-frag="4">In Part 2, only 0.58% of the rows are fraud. There,
-            accuracy becomes a lie that reads as 99.6%.</li>
+          <li class="frag" data-frag="4">In Part 2, fraud is rare: <b>0.58%</b> of the rows the
+            model trains on, and <b>0.4%</b> of the later rows it is tested on — the rate falls
+            over the two years. There, accuracy becomes a lie that reads as 99.6%.</li>
           <li class="frag" data-frag="5">Some digits are genuinely unclear, even to you. That is
             why a good score is 99-point-something and not 100.</li>
         </ul>
@@ -534,11 +534,12 @@
           <li class="frag" data-frag="1">An <b>endpoint</b> is one address that accepts a request
             and returns an answer. Here it is <code>POST /predict</code>.</li>
           <li class="frag" data-frag="2">Requests arrive as <b>JSON</b>: text. The model needs
-            numbers of an exact shape: 784 pixels, arranged as 28 × 28 × 1, as decimals
-            between 0 and 1.</li>
-          <li class="frag" data-frag="3"><b>Pydantic checks the request before the model sees
-            it.</b> A wrong length or a wrong type gets a clear error message, instead of a
-            crash deep inside the model.</li>
+            numbers of an exact shape: 784 pixels, arranged as 28 × 28 × 1, as decimals between
+            0 and 1. Whole pixel values from 0 to 255 are accepted too — the server divides.</li>
+          <li class="frag" data-frag="3"><b>The request is checked before the model sees it.</b>
+            Pydantic checks the types: anything that is not a list of numbers is refused. The
+            endpoint then counts them, because 783 numbers are still numbers. Both answers are a
+            clear message, instead of a crash deep inside the model.</li>
           <li class="frag" data-frag="4">The server resolves <code>@champion</code> once, when it
             starts. <code>POST /reload</code> makes it look again, without a restart.</li>
           <li class="frag" data-frag="5">Every answer is appended to
@@ -559,8 +560,8 @@
           <path class="frag" data-frag="3" d="M230,64 V92" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m10)"/>
           <g class="frag" data-frag="3">
             <rect x="8" y="100" width="444" height="52" rx="8" fill="var(--c2-soft)" stroke="var(--c2)"/>
-            <text x="24" y="124" fill="var(--ink)" font-size="13" font-weight="650">Pydantic — is this really 784 numbers?</text>
-            <text x="24" y="142" fill="var(--ink2)" font-size="11.5">no → 422, and a message saying what was wrong &nbsp;·&nbsp; yes → continue</text>
+            <text x="24" y="124" fill="var(--ink)" font-size="13" font-weight="650">Is this really 784 numbers?</text>
+            <text x="24" y="142" fill="var(--ink2)" font-size="11.5">not numbers → 422 (Pydantic) &nbsp;·&nbsp; not 784 → 400 (endpoint) &nbsp;·&nbsp; yes → continue</text>
           </g>
           <path class="frag" data-frag="4" d="M230,152 V180" stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#m10)"/>
           <g class="frag" data-frag="4">

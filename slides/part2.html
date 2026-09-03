@@ -106,7 +106,7 @@
 <section class="slide">
   <header>
     <span class="kicker">Part 2 · the stack</span>
-    <h2>Nine containers need a written plan</h2>
+    <h2>Eight containers need a written plan</h2>
     <p class="sub">A <b>compose file</b> is one text file that describes every container in a
       project, and how they fit together.</p>
   </header>
@@ -115,7 +115,7 @@
       <div>
         <ul>
           <li class="frag" data-frag="1">Part 1 ran three containers, and you started them one at
-            a time. Part 2 runs nine.</li>
+            a time. Part 2 runs eight.</li>
           <li class="frag" data-frag="2">The file names each <b>service</b>: which image, which
             ports, which environment variables, which volumes.</li>
           <li class="frag" data-frag="3">It also creates a private <b>network</b>. Services find
@@ -133,15 +133,14 @@
     ports: [<span class="hl">"8001:8001"</span>]
     environment:
       MLFLOW_TRACKING_URI: http://<span class="hl">mlflow-server</span>:5000
-      DATABASE_URL: postgres://…@<span class="hl">postgres</span>/mlops
+      POSTGRES_DSN: postgresql://…@<span class="hl">postgres</span>/mlops
     volumes: ["./mlruns:/mlruns"]
     depends_on: [mlflow-server, postgres]
     profiles: ["part2", "serve2"]</pre>
     </div>
     <div class="callout frag" data-frag="6">You already know what a container is. Compose adds no
-      new idea — it is the written plan for many containers at once, kept in git beside the code.
-      Podman reads the same file: the command is <code>podman compose</code>, and nothing else
-      changes.</div>
+      new idea — it is the written plan for many containers at once, kept in git beside the
+      code.</div>
   </div>
 </section>
 

@@ -34,13 +34,12 @@ SERVE_URL = os.getenv("SERVE_URL", "http://fraud-serve:8001")
 SNAPSHOT = Path(os.getenv("SNAPSHOT", "/data/derived/fraud_training.parquet"))
 POINTER = SNAPSHOT.with_suffix(SNAPSHOT.suffix + ".dvc")
 
-# Paths as the CONTAINER ENGINE sees them. Airflow's own /data and /mlruns mounts are useless
-# to a sibling container: the engine resolves bind sources on the host, not in this
+# Paths as the DOCKER DAEMON sees them. Airflow's own /data and /mlruns mounts are useless
+# to a sibling container: the docker daemon resolves bind sources on the host, not in this
 # container's namespace. Hence the host path, passed in by compose.
 HOST_REPO = os.environ["HOST_REPO_DIR"]
-# Both come from .env rather than being fixed here, so the same DAG works when the engine or
-# the compose project name differs. Podman finds this image under its bare name, exactly as
-# Docker does.
+# Both come from .env rather than being fixed here, so the same DAG works when the compose
+# project name differs.
 DOCKER_NETWORK = os.getenv("DOCKER_NETWORK", "keras-mlops_default")
 TRAINER_IMAGE = os.getenv("TRAINER_IMAGE", "keras-mlops-fraud-trainer:latest")
 
@@ -58,6 +57,13 @@ TRAINER_ENV = {
     "REGISTERED_MODEL": REG_NAME,
     "DATA_DIR": "/data/fraud",
     "SNAPSHOT": str(SNAPSHOT),
+    # Fixed here because compose fixes them for fraud-trainer: same values, so a DAG run and
+    # a `compose run` train the same model. They are not exposed to --conf.
+    "DROPOUT": "0.3",
+    "LR": "1e-3",
+    "CLASS_WEIGHT": "balanced",
+    "BATCH_SIZE": "2048",
+    "VAL_FRACTION": "0.1",
     # Hyperparameters, and the only part meant to vary between runs. `environment` is a
     # templated field, so a trigger can override them for one run without touching compose:
     #   airflow dags trigger fraud_retrain --conf '{"epochs": "12", "hidden": "256,128"}'
@@ -153,12 +159,12 @@ def fraud_retrain():
         image=TRAINER_IMAGE,
         # run_after, not ds/ts_nodash: those come from logical_date, and an Airflow 3 manual
         # run of an unscheduled DAG has none -- the template renders 'ds is undefined' and the
-        # task fails before the engine is ever contacted.
+        # task fails before docker is ever contacted.
         container_name="fraud-trainer-airflow-{{ dag_run.run_after.strftime('%Y%m%d-%H%M%S') }}",
         environment={**TRAINER_ENV,
                      "RUN_NAME": "airflow-{{ dag_run.run_after.strftime('%Y%m%d-%H%M') }}"},
-        # The same ids the rest of the stack runs as. Under rootless Podman they are 0:0,
-        # which is that engine's way of saying "the host user who started it".
+        # The same ids the rest of the stack runs as, so what this container writes into
+        # ./mlruns stays owned by you.
         user=f"{os.getenv('CONTAINER_UID', '1000')}:{os.getenv('CONTAINER_GID', '1000')}",
         network_mode=DOCKER_NETWORK,    # mlflow-server is a service name, not a host port
         mounts=[
@@ -167,9 +173,8 @@ def fraud_retrain():
         ],
         mount_tmp_dir=False,            # the default /tmp bind is a container-in-container mistake: that path does not exist on the host
         auto_remove="success",          # keep the container on failure, so its logs survive the DAG run
-        # Compose binds the engine's socket to this path whatever the engine is, so a Podman
-        # socket at /run/user/<uid>/podman/podman.sock arrives here unchanged. Podman answers
-        # the same API, which is why DockerOperator needs no Podman-specific branch.
+        # Compose binds the host's docker socket to this path, whatever DOCKER_SOCK named on
+        # the host, so this line never changes.
         docker_url="unix://var/run/docker.sock",
         api_version="auto",
         retrieve_output=False,
