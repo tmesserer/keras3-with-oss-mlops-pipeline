@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Part 2 \u2014 where the data goes, service by service",
+    "viewBox": [
+      1080,
+      520
+    ],
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "loop-decision",
+        "label": "\u2460 decision",
+        "focus": [
+          "sparkov",
+          "mlflow",
+          "app",
+          "serve",
+          "postgres"
+        ],
+        "note": "The application asks the endpoint about rows the model has never seen."
+      },
+      {
+        "id": "loop-label",
+        "label": "\u2461 label",
+        "focus": [
+          "postgres",
+          "labelstudio"
+        ],
+        "note": "The uncertain band goes to a human, and the verdict comes back."
+      },
+      {
+        "id": "loop-improve",
+        "label": "\u2462 improvement",
+        "focus": [
+          "postgres",
+          "snapshot",
+          "trainer",
+          "mlflow"
+        ],
+        "note": "Judged rows become training rows, and the snapshot gets a new hash."
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "Raw data"
+    },
+    {
+      "label": "Dataset"
+    },
+    {
+      "label": "Model"
+    },
+    {
+      "label": "Live traffic"
+    },
+    {
+      "label": "Store and review"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "sparkov",
+      "type": "external",
+      "label": "Sparkov CSVs",
+      "sublabel": "fraudTrain + fraudTest",
+      "stage": 0,
+      "row": 1,
+      "width": 152,
+      "tag": "1.85M rows"
+    },
+    {
+      "id": "snapshot",
+      "type": "database",
+      "label": "the parquet snapshot",
+      "sublabel": "F1 \u00b7 built on the host, hashed",
+      "stage": 1,
+      "row": 1,
+      "width": 168,
+      "tag": "one md5"
+    },
+    {
+      "id": "trainer",
+      "type": "backend",
+      "label": "fraud-trainer",
+      "sublabel": "B1 \u00b7 Keras 3, class weights",
+      "stage": 2,
+      "row": 1,
+      "width": 168,
+      "tag": "one run"
+    },
+    {
+      "id": "mlflow",
+      "type": "cloud",
+      "label": "MLflow registry",
+      "sublabel": "B3 \u00b7 @champion and its threshold",
+      "stage": 2,
+      "row": 2,
+      "width": 168,
+      "tag": "only copy"
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "txn-app",
+      "sublabel": "D1 \u00b7 replays the test file, no ML",
+      "stage": 3,
+      "row": 0,
+      "width": 168,
+      "tag": "5 txn/s"
+    },
+    {
+      "id": "serve",
+      "type": "backend",
+      "label": "fraud-serve",
+      "sublabel": "C1 \u00b7 scores and applies the band",
+      "stage": 3,
+      "row": 2,
+      "width": 168,
+      "tag": ":8001"
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "Postgres",
+      "sublabel": "server rows and client rows",
+      "stage": 4,
+      "row": 1,
+      "width": 168,
+      "tag": "shared"
+    },
+    {
+      "id": "labelstudio",
+      "type": "frontend",
+      "label": "Label Studio",
+      "sublabel": "E1 \u00b7 a human decides",
+      "stage": 4,
+      "row": 2,
+      "width": 168,
+      "tag": "the analyst"
+    }
+  ],
+  "flows": [
+    {
+      "id": "train-file",
+      "from": "sparkov",
+      "to": "snapshot",
+      "label": "fraudTrain.csv",
+      "classification": "labelled history",
+      "variant": "emphasis",
+      "labelAt": [
+        204,
+        212
+      ]
+    },
+    {
+      "id": "test-file",
+      "from": "sparkov",
+      "to": "app",
+      "label": "fraudTest.csv, replayed live",
+      "classification": "rows the model never saw",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [
+        [
+          100,
+          70
+        ],
+        [
+          745,
+          70
+        ]
+      ]
+    },
+    {
+      "id": "parquet-read",
+      "from": "snapshot",
+      "to": "trainer",
+      "label": "parquet + md5",
+      "classification": "read only",
+      "variant": "emphasis",
+      "labelAt": [
+        423,
+        330
+      ]
+    },
+    {
+      "id": "model-out",
+      "from": "trainer",
+      "to": "mlflow",
+      "label": "model + threshold",
+      "classification": "one run",
+      "variant": "emphasis",
+      "labelAt": [
+        645,
+        328
+      ]
+    },
+    {
+      "id": "champion",
+      "from": "mlflow",
+      "to": "serve",
+      "label": "@champion",
+      "classification": "resolved at startup",
+      "variant": "emphasis",
+      "labelAt": [
+        638,
+        442
+      ]
+    },
+    {
+      "id": "score-call",
+      "from": "app",
+      "to": "serve",
+      "label": "12 raw columns",
+      "classification": "one HTTP call per transaction",
+      "labelAt": [
+        745,
+        271
+      ]
+    },
+    {
+      "id": "client-row",
+      "from": "app",
+      "to": "postgres",
+      "label": "what it experienced",
+      "classification": "app_requests",
+      "labelAt": [
+        940,
+        190
+      ]
+    },
+    {
+      "id": "server-row",
+      "from": "serve",
+      "to": "postgres",
+      "label": "what it decided",
+      "classification": "scored_transactions",
+      "labelAt": [
+        790,
+        442
+      ]
+    },
+    {
+      "id": "review-band",
+      "from": "postgres",
+      "to": "labelstudio",
+      "label": "the review band",
+      "classification": "score hidden",
+      "variant": "security",
+      "labelAt": [
+        800,
+        328
+      ]
+    },
+    {
+      "id": "verdict-in",
+      "from": "labelstudio",
+      "to": "postgres",
+      "label": "the analyst's verdict",
+      "classification": "carried back by label-sync",
+      "labelAt": [
+        940,
+        442
+      ]
+    },
+    {
+      "id": "new-rows",
+      "from": "postgres",
+      "to": "snapshot",
+      "label": "new training rows",
+      "classification": "a new hash",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [
+        [
+          1058,
+          271
+        ],
+        [
+          1058,
+          470
+        ],
+        [
+          315,
+          470
+        ]
+      ],
+      "labelAt": [
+        540,
+        470
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "The split happens first",
+      "items": [
+        "fraudTrain.csv is the labelled history the model learns from",
+        "fraudTest.csv is replayed live, so every request is new to the model"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Two telemetry tables, on purpose",
+      "items": [
+        "scored_transactions is what the server did; app_requests is what the client experienced",
+        "label-sync moves the uncertain rows to Label Studio and the verdicts back"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "What the human labels change",
+      "items": [
+        "A verdict adds a training row, removes a test row, and moves the dataset hash",
+        "Those rows land in the validation slice: they move the threshold, not the weights"
+      ]
+    }
+  ]
+}

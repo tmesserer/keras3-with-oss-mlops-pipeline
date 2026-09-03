@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 740" width="1180" height="740"
+     font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img"
+     aria-label="Part 2 data flow: the Sparkov files, the time split, the derived snapshot, the trainer's fit and validation slices, the held-out test set, and the rows txn-app replays">
+  <style>
+    .surface { fill: #fcfcfb; }
+    .card    { fill: #ffffff; stroke: #d8d7d0; stroke-width: 1.2; }
+    .band    { fill: none; stroke: #c3c2b7; stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .h1      { fill: #0b0b0b; font-size: 17px; font-weight: 650; }
+    .h2      { fill: #52514e; font-size: 12px; }
+    .title   { fill: #0b0b0b; font-size: 12.5px; font-weight: 650; letter-spacing: .04em; }
+    .item    { fill: #52514e; font-size: 11px; }
+    .code    { fill: #0b0b0b; font-size: 11px; font-weight: 650; }
+    .note    { fill: #898781; font-size: 9.5px; }
+    .rule    { stroke: #e1e0d9; stroke-width: 1; }
+    .flow    { stroke: #52514e; stroke-width: 1.6; fill: none; }
+    .mk      { fill: #52514e; }
+    .cut     { stroke: #898781; stroke-width: 1.2; stroke-dasharray: 4 4; }
+    .l1      { stroke: #2a78d6; }  /* categorical slot 1 - the live system, loop 1 */
+    .l2      { stroke: #eb6834; }  /* categorical slot 2 - the human, loop 2 */
+    .l3      { stroke: #1baf7a; }  /* categorical slot 3 - the training material, loop 3 */
+    .t1      { fill: #2a78d6; font-size: 11.5px; font-weight: 650; }
+    .t2      { fill: #eb6834; font-size: 11.5px; font-weight: 650; }
+    .t3      { fill: #1baf7a; font-size: 11.5px; font-weight: 650; }
+    .n2      { fill: #eb6834; font-size: 9.5px; }
+    .seg     { stroke-width: 1.2; }
+    .s1      { fill: #e6eff9; stroke: #2a78d6; }
+    .s2      { fill: #fbe9e1; stroke: #eb6834; }
+    .s3      { fill: #e4f4ee; stroke: #1baf7a; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #1a1a19; }
+      .card    { fill: #232322; stroke: #3a3a37; }
+      .band    { stroke: #4a4a46; }
+      .h1, .title, .code { fill: #ffffff; }
+      .h2, .item { fill: #c3c2b7; }
+      .note    { fill: #a3a199; }
+      .rule    { stroke: #33332f; }
+      .flow    { stroke: #c3c2b7; }
+      .mk      { fill: #c3c2b7; }
+      .cut     { stroke: #a3a199; }
+      .l1 { stroke: #3987e5; } .t1 { fill: #3987e5; }
+      .l2 { stroke: #d95926; } .t2 { fill: #d95926; } .n2 { fill: #d95926; }
+      .l3 { stroke: #199e70; } .t3 { fill: #199e70; }
+      .s1 { fill: #16222f; stroke: #3987e5; }
+      .s2 { fill: #2b1c15; stroke: #d95926; }
+      .s3 { fill: #172b25; stroke: #199e70; }
+    }
+  </style>
+
+  <defs>
+    <marker id="d-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="mk" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="d-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path fill="#eb6834" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="surface" x="0" y="0" width="1180" height="740"/>
+
+  <text class="h1" x="30" y="36">Part 2 — which rows go where</text>
+  <text class="h2" x="30" y="58">One dataset, cut three times: by the file it came in, by time inside the training file, and by whether a human has looked at it. Counts are the real ones on this machine.</text>
+
+  <!-- ================= 1 · the original dataset ================= -->
+  <g id="dg-source">
+    <text class="title" x="30" y="92">1 · THE ORIGINAL DATASET<tspan class="item" font-weight="400" letter-spacing="0">   Sparkov synthetic credit-card transactions, fetched by A1 into data/fraud/ — 1,852,394 rows, 9,651 of them fraud (0.52%)</tspan></text>
+
+    <text class="note" x="30" y="110">2019-01-01 00:00:18  →  2020-06-21 12:13:37</text>
+    <text class="note" x="1150" y="110" text-anchor="end">2020-06-21 12:14:25  →  2020-12-31 23:59:34</text>
+
+    <rect class="seg s3" x="30" y="118" width="764" height="46" rx="6"/>
+    <text class="code" x="46" y="138">fraudTrain.csv</text>
+    <text class="item" x="46" y="155">1,296,675 rows · <tspan class="code">70.0%</tspan> of the data · 7,506 fraud (0.579%)</text>
+
+    <rect class="seg s1" x="822" y="118" width="328" height="46" rx="6"/>
+    <text class="code" x="838" y="138">fraudTest.csv</text>
+    <text class="item" x="838" y="155">555,719 rows · <tspan class="code">30.0%</tspan> · 2,145 fraud (0.386%)</text>
+
+    <line class="cut" x1="808" y1="106" x2="808" y2="176"/>
+    <text class="note" x="808" y="141" text-anchor="middle" transform="rotate(-90 808 141)">48 s</text>
+
+    <text class="item" x="30" y="186">The two files are a <tspan class="code">time split</tspan>, not a random one: the test file starts 48 seconds after the training file ends. Shuffling across that line is leakage.</text>
+  </g>
+
+  <!-- ================= 2 · the derived snapshot ================= -->
+  <g id="dg-snapshot">
+    <text class="title" x="30" y="222">2 · THE SNAPSHOT THE TRAINER READS<tspan class="item" font-weight="400" letter-spacing="0">   F1 · data/derived/fraud_training.parquet</tspan></text>
+
+    <rect class="seg s3" x="30" y="232" width="764" height="46" rx="6"/>
+    <text class="code" x="46" y="252">source = &#8216;original&#8217;  ·  1,296,675 rows  ·  99.998%</text>
+    <text class="item" x="46" y="269">the whole training file, labels as the dataset shipped them</text>
+
+    <rect class="seg s2" x="794" y="232" width="6" height="46" rx="2"/>
+    <path class="flow l2" d="M797,280 V290"/>
+    <text class="n2" x="790" y="296" text-anchor="end">source = &#8216;analyst&#8217; · 26 rows · 0.002% · 10 of them judged fraud — the only new information in the system</text>
+    <text class="note" x="790" y="310" text-anchor="end">1,296,701 rows total · 7,516 fraud (0.580%) · dvc md5 48f8d418… — the hash the run is tagged with</text>
+  </g>
+
+  <!-- ================= 3 · the trainer's split ================= -->
+  <g id="dg-split">
+    <text class="title" x="30" y="342">3 · WHAT THE TRAINER SPLITS IT INTO<tspan class="item" font-weight="400" letter-spacing="0">   B1 · sorted by time, stable, VAL_FRACTION 0.1 · TRAIN_SUBSET 0 = every row</tspan></text>
+
+    <rect class="seg s3" x="30" y="352" width="693" height="42" rx="6"/>
+    <text class="code" x="46" y="371">FIT</text>
+    <text class="item" x="46" y="386">the model learns here</text>
+
+    <rect class="seg s3" x="723" y="352" width="77" height="42" rx="6"/>
+    <text class="code" x="761" y="371" text-anchor="middle">VAL</text>
+    <text class="item" x="761" y="386" text-anchor="middle">10%</text>
+
+    <text class="item" x="30" y="416"><tspan class="code">FIT</tspan>   1,167,030 rows · <tspan class="code">90.0%</tspan> of the snapshot · 6,675 fraud (0.572%) · 2019-01-01 → 2020-05-02</text>
+    <text class="item" x="30" y="436"><tspan class="code">VAL</tspan>   129,671 rows · <tspan class="code">10.0%</tspan> · 841 fraud (0.649%) · 2020-05-02 → 2020-06-22</text>
+    <text class="note" x="66" y="452">the tail of the snapshot, by time — it picks the operating threshold at 0.90 target precision. All 26 analyst rows land here, because they are the newest.</text>
+  </g>
+
+
+  <!-- ================= 4 · what moves next time ================= -->
+  <g id="dg-next">
+    <rect class="card" x="30" y="474" width="740" height="130" rx="10"/>
+    <text class="title" x="46" y="500">4 · WHAT MOVES THE NEXT TIME ROUND<tspan class="item" font-weight="400" letter-spacing="0">   G1 · fraud_retrain</tspan></text>
+    <line class="rule" x1="46" y1="512" x2="754" y2="512"/>
+    <text class="item" x="46" y="532">Only the analyst slice grows. The 1,296,675 original rows are written in the same order every time, so the parquet is byte-identical and the</text>
+    <text class="item" x="46" y="550">hash only moves when a human has judged something new. 26 rows is 0.002% of training — the mechanism is the lesson here, not the gain.</text>
+    <text class="item" x="46" y="574">Each new verdict does three things at once: <tspan class="code">+1 training row</tspan>  ·  <tspan class="code">−1 test row</tspan>  ·  <tspan class="code">a new dvc hash</tspan> on the run that learned from it.</text>
+    <text class="note" x="46" y="592">The DAG never rebuilds the snapshot. It checks the parquet still matches the committed pointer and fails with the rebuild command if it does not.</text>
+  </g>
+
+  <!-- ================= right column: evaluation and replay ================= -->
+  <g id="dg-test">
+    <rect class="card" x="832" y="226" width="318" height="128" rx="10"/>
+    <text class="title" x="848" y="252">HELD-OUT TEST</text>
+    <line class="rule" x1="848" y1="264" x2="1134" y2="264"/>
+    <text class="item" x="848" y="284">555,719 rows in the file</text>
+    <text class="item" x="848" y="302">−  26 reviewed rows withheld (0.005%)</text>
+    <text class="code" x="848" y="322">=  555,693 rows · 2,143 fraud (0.386%)</text>
+    <text class="note" x="848" y="342">test_pr_auc on these rows is what promotion compares</text>
+  </g>
+
+  <g id="dg-app">
+    <rect class="card" x="832" y="470" width="318" height="134" rx="10"/>
+    <text class="title" x="848" y="496">D1 · txn-app REPLAYS</text>
+    <line class="rule" x1="848" y1="508" x2="1134" y2="508"/>
+    <text class="item" x="848" y="528"><tspan class="code">all 555,719 rows · 100%</tspan> of the test file</text>
+    <text class="item" x="848" y="546">in file order, starting again at EOF</text>
+    <text class="item" x="848" y="564">5 txn/s by default → one pass ≈ 30.9 h</text>
+    <text class="note" x="848" y="584">12 raw columns per call. is_fraud is kept client-side</text>
+    <text class="note" x="848" y="597">as <tspan class="code" font-size="9.5">label</tspan> for the dashboard, and never sent to the model.</text>
+  </g>
+
+  <!-- ================= flows ================= -->
+  <g id="fl-train">
+    <path class="flow l3" marker-end="url(#d-a)" d="M700,192 V226"/>
+    <text class="note" x="710" y="212">the labelled history</text>
+    <path class="flow l3" marker-end="url(#d-a)" d="M700,314 V346"/>
+    <text class="note" x="710" y="334">split by time</text>
+  </g>
+
+  <g id="fl-test">
+    <path class="flow l1" marker-end="url(#d-a)" d="M1000,192 V220"/>
+    <text class="note" x="1010" y="210">held out</text>
+    <path class="flow l1" marker-end="url(#d-a)" d="M1000,356 V464"/>
+    <text class="note" x="1010" y="400">the same file, replayed live —</text>
+    <text class="note" x="1010" y="413">the app is given the 26 back too,</text>
+    <text class="note" x="1010" y="426">because serving is not scoring</text>
+  </g>
+
+  <g id="fl-loop2">
+    <path class="flow l2" marker-end="url(#d-a2)" d="M1000,606 V624"/>
+    <path class="flow l2" marker-end="url(#d-a2)" d="M822,622 V292 H804"/>
+    <text class="n2" x="812" y="470" text-anchor="middle" transform="rotate(-90 812 470)">② verdicts come back as training rows</text>
+  </g>
+
+  <!-- ================= the loop back ================= -->
+  <g id="dg-loop">
+    <rect class="band" x="30" y="628" width="1120" height="82" rx="10"/>
+    <text class="title" x="46" y="654">WHY THE TEST SET SHRINKS</text>
+    <text class="item" x="46" y="676">Every reviewed transaction came out of the <tspan class="code">fraudTest.csv</tspan> period — the app only replays that file. Once an analyst has judged one, it is training data,</text>
+    <text class="item" x="46" y="694">so the trainer drops it from the test set and logs how many as <tspan class="code">test_rows_withheld</tspan>. Keep them in both places and the score is a report on rows the model already saw.</text>
+  </g>
+</svg>
